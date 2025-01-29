@@ -14,7 +14,7 @@ gedit ~/.dosbox/config_file_name.conf
 ```
 and write :
 ```
-mount C /home/user_name/folder_to_mount
+mount C /home/user_name/folder_to_mount/dos_assembly
 C:
 ```
 Now DOSBOX will automatically mount on your folder
