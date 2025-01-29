@@ -20,6 +20,8 @@ C:
 Now DOSBOX will automatically mount on your folder
 
 ## Install the DOS Debugger
+[Here](https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/distributions/1.2/repos/pkg-html/debug.html)
+
 
 ## Install NASM
 
