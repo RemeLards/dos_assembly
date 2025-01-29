@@ -20,126 +20,169 @@ segment code
    		mov     	ah,0
     	int     	10h
 		
+draw_limit_lines:
+		mov		byte[cor],branco
+		mov		ax,0
+		push	ax
+		mov		ax,0
+		push	ax
+		mov		ax,0
+		push	ax
+		mov		ax,479
+		push	ax
+		call	line
+		
+		mov		byte[cor],branco
+		mov		ax,0
+		push	ax
+		mov		ax,479
+		push	ax
+		mov		ax,639
+		push	ax
+		mov		ax,479
+		push	ax
+		call	line
 
-;desenhar retas
+		mov		byte[cor],branco	
+		mov		ax,639
+		push	ax
+		mov		ax,479
+		push	ax
+		mov		ax,639
+		push	ax
+		mov		ax,0
+		push	ax
+		call	line
 
-		mov		byte[cor],branco_intenso	;antenas
-		mov		ax,20
-		push		ax
-		mov		ax,400
-		push		ax
-		mov		ax,620
-		push		ax
-		mov		ax,400
-		push		ax
-		call		line
-		
-		mov		byte[cor],marrom	;antenas
-		mov		ax,130
-		push		ax
-		mov		ax,270
-		push		ax
-		mov		ax,100
-		push		ax
-		mov		ax,300
-		push		ax
-		call		line
-		
-		mov		ax,130
-		push		ax
-		mov		ax,130
-		push		ax
-		mov		ax,100
-		push		ax
-		mov		ax,100
-		push		ax
-		call		line
-		
-		
-;desenha circulos 
-		mov		byte[cor],azul	;cabe�a
-		mov		ax,200
-		push		ax
-		mov		ax,200
-		push		ax
-		mov		ax,100
-		push		ax
-		call	circle
 
-		mov		byte[cor],verde	;corpo
-		mov		ax,450
-		push		ax
-		mov		ax,200
-		push		ax
-		mov		ax,190
-		push		ax
-		call	circle
+		mov		byte[cor],branco	
+		mov		ax,639
+		push	ax
+		mov		ax,0
+		push	ax
+		mov		ax,0
+		push	ax
+		mov		ax,0
+		push	ax
+		call	line
+
+		mov		byte[cor],vermelho
+		mov 	word[current_x],319
+		push	word[current_x]
+		mov		word[current_y],239
+		push	word[current_y]
+		mov		word[current_r],10
+		push	word[current_r]
+		call full_circle
+
+animate_ball:
+		mov ah,0bh
+		int 21h ; Le buffer de teclado
+		cmp al,0 ; Se AL =0 nada foi digitado. Se AL =255 então há algum caracter na STDIN
+		jne adelante
+		jmp draw_ball ; se AL = 0 então nada foi digitado e a animação do jogo deve continuar
+adelante:
+		mov ah, 08H ;Ler caracter da STDIN
+		int 21H
+		cmp al, 's' ;Verifica se foi 's'. Se foi, finaliza o programa
+		jne draw_ball
+		jmp quit
+draw_ball:
+	;Delete old ball
+
+		mov		byte[cor],preto
+		push	word[current_x]
+		push	word[current_y]
+		push	word[current_r]
+		call full_circle	
+	;Draw new ball
+
+hit_wall:
+		;Checks if hit the right wall
+		mov ax,[current_x]
+		add ax,[current_r]
+		cmp ax,639
+		jge reverse_x_vel
+
+		;Checks if hit the left wall
+		mov ax,[current_x]
+		sub ax,[current_r]
+		cmp ax,0
+		jle reverse_x_vel
+
+		jmp draw
+reverse_x_vel:
+		neg word[velocidade_x]
+		jmp draw
+
+
+hit_floor_ceiling:
+		;Checks if hit the ceiling
+		mov ax,[current_y]
+		add ax,[current_r]
+		cmp ax,479
+		jge reverse_y_vel
+
+		mov ax,[current_y]
+		sub ax,[current_r]
+		cmp ax,0
+		jle reverse_y_vel
+
+		jmp draw
+
+reverse_y_vel:
+		neg word[velocidade_x]
+		jmp draw
+	
+	;Actually Draws it
+draw:
+		mov byte[cor],vermelho
+		mov ax,word[velocidade_x] 
+		add word[current_x],ax
+		mov	ax,word[velocidade_y]
+		add word[current_y],ax
+		push	word[current_x]
+		push	word[current_y]
+		push	word[current_r]
+		call full_circle
+		call delay
+		jmp animate_ball ;returns to the start 
+
+
 		
-		mov		ax,100	;circulos das antenas
-		push		ax
-		mov		ax,100
-		push		ax
-		mov		ax,10
-		push		ax
-		call	circle
-		
-		mov		ax,100
-		push		ax
-		mov		ax,300
-		push		ax
-		mov		ax,10
-		push		ax
-		call	circle
-		
-		mov		byte[cor],vermelho	;circulos vermelhos
-		mov		ax,500
-		push		ax
-		mov		ax,300
-		push		ax
-		mov		ax,50
-		push		ax
-		call	full_circle
-		
-		mov		ax,500
-		push		ax
-		mov		ax,100
-		push		ax
-		mov		ax,50
-		push		ax
-		call	full_circle
-		
-		mov		ax,350
-		push		ax
-		mov		ax,200
-		push		ax
-		mov		ax,50
-		push		ax
-		call	full_circle
-		
+quit:
+		mov  	ah,0   			; set video mode
+		mov  	al,[modo_anterior]   	; modo anterior
+		int  	10h
+		mov ax,4c00h
+		int 21h
+
+
 
 ;escrever uma mensagem
 
-    	mov     	cx,14			;n�mero de caracteres
-    	mov     	bx,0
-    	mov     	dh,0			;linha 0-29
-    	mov     	dl,30			;coluna 0-79
-		mov		byte[cor],azul
-l4:
-		call	cursor
-    	mov     al,[bx+mens]
-		call	caracter
-    	inc     bx			;proximo caracter
-		inc		dl			;avanca a coluna
-		inc		byte [cor]		;mudar a cor para a seguinte
-    	loop    l4
+;     	mov     	cx,14			;n�mero de caracteres
+;     	mov     	bx,0
+;     	mov     	dh,0			;linha 0-29
+;     	mov     	dl,30			;coluna 0-79
+; 		mov		byte[cor],azul
+; l4:
+; 		call	cursor
+;     	mov     al,[bx+mens]
+; 		call	caracter
+;     	inc     bx			;proximo caracter
+; 		inc		dl			;avanca a coluna
+; 		inc		byte [cor]		;mudar a cor para a seguinte
+;     	loop    l4
 
-		mov    	ah,08h
-		int     21h
-	    mov  	ah,0   			; set video mode
-	    mov  	al,[modo_anterior]   	; modo anterior
-	    int  	10h
-		mov     ax,4c00h
-		int     21h
+; 		mov    	ah,08h
+; 		int     21h
+; 	    mov  	ah,0   			; set video mode
+; 	    mov  	al,[modo_anterior]   	; modo anterior
+; 	    int  	10h
+; 		mov     ax,4c00h
+; 		int     21h
+
 ;***************************************************************************
 ;
 ;   fun��o cursor
@@ -661,6 +704,20 @@ fim_line:
 		pop		bp
 		ret		8
 ;*******************************************************************
+
+
+
+delay: ; Esteja atento pois talvez seja importante salvar contexto (no caso, CX, o que NÃO foi feito aqui).
+	mov cx, word [velocidade] ; Carrega “velocidade” em cx (contador para loop)
+	del2:
+	push cx ; Coloca cx na pilha para usa-lo em outro loop
+	mov cx, 0800h ; Teste modificando este valor
+del1:
+	loop del1 ; No loop del1, cx é decrementado até que volte a ser zero
+	pop cx ; Recupera cx da pilha
+	loop del2 ; No loop del2, cx é decrementado até que seja zero
+	ret
+
 segment data
 
 cor		db		branco_intenso
@@ -706,6 +763,13 @@ coluna  	dw  		0
 deltax		dw		0
 deltay		dw		0	
 mens    	db  		'Funcao Grafica'
+
+velocidade dw 100
+velocidade_x dw 5
+velocidade_y dw 5
+current_x resw 1
+current_y resw 1
+current_r resw 1
 ;*************************************************************************
 segment stack stack
     		resb 		512
