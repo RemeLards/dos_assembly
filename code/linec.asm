@@ -185,7 +185,9 @@ move_ball:
 		push	word[current_r]
 		call full_circle
 		call delay
-		jmp animate_ball ;returns to the start 
+		jmp animate_ball ;returns to the start
+		;O "Flickering" da bola (bola piscando) ocorre porque desenho uma bola preta e vermelha ao mesmo tempo
+		;Mas a sensação de movimento é o que é importante para esse lab
 
 
 		
