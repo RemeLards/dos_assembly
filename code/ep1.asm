@@ -4,31 +4,264 @@
 ;
 segment code
 ..start:
-    		mov 		ax,data
-    		mov 		ds,ax
-    		mov 		ax,stack
-    		mov 		ss,ax
-    		mov 		sp,stacktop
+		mov 		ax,data
+		mov 		ds,ax
+		mov 		ax,stack
+		mov 		ss,ax
+		mov 		sp,stacktop
 
 ; salvar modo corrente de video(vendo como está o modo de video da maquina)
-            mov  		ah,0Fh
-    		int  		10h
-    		mov  		[modo_anterior],al   
+		mov  		ah,0Fh
+		int  		10h
+		mov  		[modo_anterior],al   
 
 ; alterar modo de video para gráfico 640x480 16 cores
-    	mov     	al,12h
-   		mov     	ah,0
-    	int     	10h
+		mov     	al,12h
+		mov     	ah,0
+		int     	10h
+
+; inicializa o drive do mouse
+		mov 		ax, 0
+		int 		33h
+
+; posiciona acima do meio da tela para não estragar o desenho da linha do centro
+		mov 		ax,4
+		mov 		cx,239
+		mov 		dx,100
+		int 		33h
+
+; mostrar o cursor na tela
+		mov 		ax, 1
+		int 		33h
+
+; O range horizontal é de 640 pixeis por padrão, mas vou setar para 640 por boa prática
+		mov 		al,7 ;Numero da função de interrupcao
+		mov 		cx,0 ;Range mínimo
+		mov 		dx,639 ;Range máximo
+		int 		33h
+
+; Aumentando o range vertical do mouse ( uma vez que o padrão é 200 pixeis e a janela é de 480)
+		mov 		al,8 ;Numero da função de interrupcao
+		mov 		cx,0 ;Range mínimo
+		mov 		dx,479 ;Range máximo
+		int 		33h
 		
-draw_menu:
-	;Argumentos da função "line" são line(x1,y1,x2,y2)
+menu_start:
+	;Doing Borders
         call    draw_border
         call    draw_buttons_borders
         call    draw_graph_borders
-        ;Borders done
 
+menu_loop:
+	;Printing text on the boxes
         call    draw_buttons_text
-        jmp quit
+
+	;Checks mouse info
+		call	get_mouse_info
+	
+	;Executes button IF it's between X and Y
+		call	button_press
+
+        jmp 	menu_loop
+
+;Execute Buttons Routine
+execute_abrir:
+	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
+	;Menos o botão que foi clicado
+
+	mov 	byte[abrir_color],amarelo
+	mov 	byte[arrow_color],branco
+	mov 	byte[fir1_color],branco
+	mov 	byte[fir2_color],branco
+	mov 	byte[fir3_color],branco
+	mov 	byte[negative_one_n_power_color], branco
+	mov 	byte[sair_color],branco
+
+	;; Faco o que a opcao deve fazer
+	;...
+	;...
+	;...
+
+	;retorno pro loop do menu
+	jmp 	menu_loop
+
+execute_arrow:
+	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
+	;Menos o botão que foi clicado
+
+	mov 	byte[abrir_color],branco
+	mov 	byte[arrow_color],amarelo
+	mov 	byte[fir1_color],branco
+	mov 	byte[fir2_color],branco
+	mov 	byte[fir3_color],branco
+	mov 	byte[negative_one_n_power_color], branco
+	mov 	byte[sair_color],branco
+
+	;; Faco o que a opcao deve fazer
+	;...
+	;...
+	;...
+
+	;retorno pro loop do menu
+	jmp 	menu_loop
+
+execute_fir1:
+	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
+	;Menos o botão que foi clicado
+
+	mov 	byte[abrir_color],branco
+	mov 	byte[arrow_color],branco
+	mov 	byte[fir1_color],amarelo
+	mov 	byte[fir2_color],branco
+	mov 	byte[fir3_color],branco
+	mov 	byte[negative_one_n_power_color], branco
+	mov 	byte[sair_color],branco
+
+	;; Faco o que a opcao deve fazer
+	;...
+	;...
+	;...
+
+	;retorno pro loop do menu
+	jmp 	menu_loop
+
+execute_fir2:
+	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
+	;Menos o botão que foi clicado
+
+	mov 	byte[abrir_color],branco
+	mov 	byte[arrow_color],branco
+	mov 	byte[fir1_color],branco
+	mov 	byte[fir2_color],amarelo
+	mov 	byte[fir3_color],branco
+	mov 	byte[negative_one_n_power_color], branco
+	mov 	byte[sair_color],branco
+
+	;; Faco o que a opcao deve fazer
+	;...
+	;...
+	;...
+
+	;retorno pro loop do menu
+	jmp 	menu_loop
+
+execute_fir3:
+	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
+	;Menos o botão que foi clicado
+
+	mov 	byte[abrir_color],branco
+	mov 	byte[arrow_color],branco
+	mov 	byte[fir1_color],branco
+	mov 	byte[fir2_color],branco
+	mov 	byte[fir3_color],amarelo
+	mov 	byte[negative_one_n_power_color], branco
+	mov 	byte[sair_color],branco
+
+	;; Faco o que a opcao deve fazer
+	;...
+	;...
+	;...
+
+	;retorno pro loop do menu
+	jmp 	menu_loop
+
+execute_negative_one_n_power:
+	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
+	;Menos o botão que foi clicado
+
+	mov 	byte[abrir_color],branco
+	mov 	byte[arrow_color],branco
+	mov 	byte[fir1_color],branco
+	mov 	byte[fir2_color],branco
+	mov 	byte[fir3_color],branco
+	mov 	byte[negative_one_n_power_color], amarelo
+	mov 	byte[sair_color],branco
+
+	;; Faco o que a opcao deve fazer
+	;...
+	;...
+	;...
+
+	;retorno pro loop do menu
+	jmp 	menu_loop
+
+execute_sair:
+	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
+	;Menos o botão que foi clicado
+
+	mov 	byte[abrir_color],branco
+	mov 	byte[arrow_color],branco
+	mov 	byte[fir1_color],branco
+	mov 	byte[fir2_color],branco
+	mov 	byte[fir3_color],branco
+	mov 	byte[negative_one_n_power_color],branco
+	mov 	byte[sair_color],amarelo
+
+	call	draw_buttons_text
+
+
+	jmp 	quit
+
+;Button Press Routines
+;A referencia do mouse é no canto superior esquerdo, e a referência da biblioteca gráfica é no canto inferior
+button_press:
+		cmp 	word[last_mouse_pos_click],127
+		jle 	button_abrir_press
+		jmp 	button_press_return
+button_abrir_press:
+	;Clicou em "Abrir"
+		cmp 	word[last_mouse_pos_click+2],69
+		jg 		button_arrow_press
+		jmp 	execute_abrir
+button_arrow_press:
+	;Clicou em "Arrow"
+		cmp 	word[last_mouse_pos_click+2],129
+		jg 		button_fir1_press
+		jmp 	execute_arrow
+button_fir1_press:
+	;Clicou em "FIR1"
+		cmp 	word[last_mouse_pos_click+2],199
+		jg 		button_fir2_press
+		jmp 	execute_fir1
+button_fir2_press:
+	;Clicou em "FIR2"
+		cmp 	word[last_mouse_pos_click+2],269
+		jg 		button_fir3_press
+		jmp 	execute_fir2
+button_fir3_press:
+	;Clicou em "FIR3"
+		cmp 	word[last_mouse_pos_click+2],339
+		jg 		button_negative_one_n_power_press
+		jmp 	execute_fir3
+button_negative_one_n_power_press:
+	;Clicou em "(-1)^n"
+		cmp 	word[last_mouse_pos_click+2],409
+		jg 		button_sair_press
+		jmp 	execute_negative_one_n_power
+button_sair_press:
+	;Clicou em "Sair"
+	;Não comparo pois sobrou apenas esse botão
+		jmp 	execute_sair
+
+button_press_return:
+		ret
+		
+
+get_mouse_info:
+		mov 	al,3 ;Número da função que pega a informação do mouse
+		int 	33h
+
+		cmp 	bx,0001h ;checa se teve algum click do botão esquerdo
+		jne 	get_mouse_info
+
+		;Guardo a informação da posição x e y do mouse, aonde foi clicado por último (com botão esquerdo)
+
+		mov 	word[last_mouse_pos_click],cx ;X
+		mov 	word[last_mouse_pos_click+2],dx;Y
+		;Lembrando que pulo 2 bytes já que são 2 variáveis word .
+
+		ret
+
 
 draw_buttons_text:
         ;;Drawing "Abrir"
@@ -36,7 +269,9 @@ draw_buttons_text:
     	mov     	bx,0
     	mov     	dh,2			;linha 0-29
     	mov     	dl,5			;coluna 0-79
-		mov		byte[cor],branco
+
+		mov		al,[abrir_color]
+		mov		byte[cor],al
 draw_abrir_str_loop:
 		call	cursor
     	mov     al,[bx+abrir_string]
@@ -50,7 +285,8 @@ draw_abrir_str_loop:
     	mov     	bx,0
     	mov     	dh,6			;linha 0-29
     	mov     	dl,5			;coluna 0-79
-		mov		byte[cor],branco
+		mov		al,[arrow_color]
+		mov		byte[cor],al
 draw_arrow_str_loop:
 		call	cursor
     	mov     al,[bx+arrow_string]
@@ -64,7 +300,8 @@ draw_arrow_str_loop:
     	mov     	bx,0
     	mov     	dh,10			;linha 0-29
     	mov     	dl,5			;coluna 0-79
-		mov		byte[cor],branco
+		mov		al,[fir1_color]
+		mov		byte[cor],al
 draw_fir1_str_loop:
 		call	cursor
     	mov     al,[bx+fir1_string]
@@ -78,7 +315,8 @@ draw_fir1_str_loop:
     	mov     	bx,0
     	mov     	dh,14			;linha 0-29
     	mov     	dl,5			;coluna 0-79
-		mov		byte[cor],branco
+		mov		al,[fir2_color]
+		mov		byte[cor],al
 draw_fir2_str_loop:
 		call	cursor
     	mov     al,[bx+fir2_string]
@@ -92,7 +330,8 @@ draw_fir2_str_loop:
     	mov     	bx,0
     	mov     	dh,19			;linha 0-29
     	mov     	dl,5			;coluna 0-79
-		mov		byte[cor],branco
+		mov		al,[fir3_color]
+		mov		byte[cor],al
 draw_fir3_str_loop:
 		call	cursor
     	mov     al,[bx+fir3_string]
@@ -102,25 +341,27 @@ draw_fir3_str_loop:
     	loop    draw_fir3_str_loop
 
         ;;Drawing "(-1)^n"
-    	mov     	cx,5			;n�mero de caracteres
+    	mov     	cx,6			;n�mero de caracteres
     	mov     	bx,0
     	mov     	dh,23			;linha 0-29
     	mov     	dl,5			;coluna 0-79
-		mov		byte[cor],branco
-draw_one_negative_n_power_string_loop:
+		mov		al,[negative_one_n_power_color]
+		mov		byte[cor],al
+draw_negative_one_n_power_string_loop:
 		call	cursor
-    	mov     al,[bx+one_negative_n_power_string]
+    	mov     al,[bx+negative_one_n_power_string]
 		call	caracter
     	inc     bx			;proximo caracter
 		inc		dl			;avanca a coluna
-    	loop    draw_one_negative_n_power_string_loop
+    	loop	draw_negative_one_n_power_string_loop
 
         ;;Drawing "Sair"
     	mov     	cx,4			;n�mero de caracteres
     	mov     	bx,0
     	mov     	dh,27			;linha 0-29
     	mov     	dl,5			;coluna 0-79
-		mov		byte[cor],branco
+		mov		al,[sair_color]
+		mov		byte[cor],al
 draw_sair_str_loop:
 		call	cursor
     	mov     al,[bx+sair_string]
@@ -294,7 +535,6 @@ draw_border:
 
 		
 quit:
-
  		mov    	ah,08h
  		int     21h
 		mov  	ah,0   			; set video mode
@@ -304,31 +544,6 @@ quit:
 		;o mesmo que fazer "mov ah 4ch", mas provavelmente "al" não é 0, por isso o uso de 2 bytes em "4c00h"
 		int 21h ; encerra o programa 
 
-
-
-;escrever uma mensagem
-
-;     	mov     	cx,14			;n�mero de caracteres
-;     	mov     	bx,0
-;     	mov     	dh,0			;linha 0-29
-;     	mov     	dl,30			;coluna 0-79
-; 		mov		byte[cor],azul
-; l4:
-; 		call	cursor
-;     	mov     al,[bx+mens]
-; 		call	caracter
-;     	inc     bx			;proximo caracter
-; 		inc		dl			;avanca a coluna
-; 		inc		byte [cor]		;mudar a cor para a seguinte
-;     	loop    l4
-
-; 		mov    	ah,08h
-; 		int     21h
-; 	    mov  	ah,0   			; set video mode
-; 	    mov  	al,[modo_anterior]   	; modo anterior
-; 	    int  	10h
-; 		mov     ax,4c00h
-; 		int     21h
 
 ;***************************************************************************
 ;
@@ -852,6 +1067,18 @@ fim_line:
 		ret		8
 ;*******************************************************************
 
+
+delay: ; Esteja atento pois talvez seja importante salvar contexto (no caso, CX, o que NÃO foi feito aqui).
+	mov cx, word [delay_ammount] ; Carrega “velocidade” em cx (contador para loop)
+	del2:
+	push cx ; Coloca cx na pilha para usa-lo em outro loop
+	mov cx, 0800h ; Teste modificando este valor
+del1:
+	loop del1 ; No loop del1, cx é decrementado até que volte a ser zero
+	pop cx ; Recupera cx da pilha
+	loop del2 ; No loop del2, cx é decrementado até que seja zero
+	ret
+
 segment data
 
 cor		db		branco_intenso
@@ -899,14 +1126,26 @@ deltay		dw		0
 mens    	db  		'Funcao Grafica'
 
 
+;; Declarando Variáveis necessárias para facilitar o desenvolvimento do código
+delay_ammount dw 50
+last_mouse_pos_click resw 2
+
+
 ;Declarando Textos da Interface
 abrir_string        db     'Abrir'
+abrir_color			db		branco
 arrow_string        db     '--->'
+arrow_color			db 		branco
 fir1_string         db     'FIR 1'
+fir1_color			db		branco
 fir2_string         db     'FIR 2'
+fir2_color			db		branco
 fir3_string         db     'FIR 3'
-one_negative_n_power_string db '(-1)^n'
+fir3_color			db		branco
+negative_one_n_power_string db '(-1)^n'
+negative_one_n_power_color	db		branco
 sair_string        db      'Sair'
+sair_color	db		branco
 
 ;*************************************************************************
 segment stack stack
