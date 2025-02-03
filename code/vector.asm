@@ -1,84 +1,84 @@
 segment code
 ..start:
-; iniciar os registros de segmento DS e SS e o ponteiro de pilha SP
-mov 		ax,data
-mov 		ds,ax
-mov 		ax,stack
-mov 		ss,ax
-mov 		sp,stacktop
+    ; iniciar os registros de segmento DS e SS e o ponteiro de pilha SP
+    mov 		ax,data
+    mov 		ds,ax
+    mov 		ax,stack
+    mov 		ss,ax
+    mov 		sp,stacktop
 
-; codigo do programa
+    ; codigo do programa
 
-;Não é possivel usar ADD ou INC nas varíaveis V1,V2,VRES
-;É necessário usar SI,DI e/ou BX para operar em cima dos endereços de memória
-mov si,V1
-mov di,V2
-mov bx,VRES
+    ;Não é possivel usar ADD ou INC nas varíaveis V1,V2,VRES
+    ;É necessário usar SI,DI e/ou BX para operar em cima dos endereços de memória
+    mov si,V1
+    mov di,V2
+    mov bx,VRES
 
-mov ax,[si]
-mov dx,[di]
-mul dx    ; DX:AX = AX * OPERADOR , nesse caso OPERADOR=di (valor armazenado nois 2 primeiros bytes)
-;caso tenha OverFlow(OF) o restante dos bits são armazenados em DX
+    mov ax,[si]
+    mov dx,[di]
+    mul dx    ; DX:AX = AX * OPERADOR , nesse caso OPERADOR=di (valor armazenado nois 2 primeiros bytes)
+    ;caso tenha OverFlow(OF) o restante dos bits são armazenados em DX
 
-mov [bx],ax ;Armazeno nos 2 bits de baixa ordem
-add bx,2
-mov [bx], dx;Armazeno nos 2 bits de alta ordem
+    mov [bx],ax ;Armazeno nos 2 bits de baixa ordem
+    add bx,2
+    mov [bx], dx;Armazeno nos 2 bits de alta ordem
 
-add bx,2
-add si,2
-add di,2
+    add bx,2
+    add si,2
+    add di,2
 
-mov ax,[si]
-mov dx,[di]
-mul dx    ; DX:AX = AX * OPERADOR , nesse caso OPERADOR=dx (valor armazenado nois 2 primeiros bytes)
-;caso tenha OverFlow(OF) o restante dos bits são armazenados em DX
+    mov ax,[si]
+    mov dx,[di]
+    mul dx    ; DX:AX = AX * OPERADOR , nesse caso OPERADOR=dx (valor armazenado nois 2 primeiros bytes)
+    ;caso tenha OverFlow(OF) o restante dos bits são armazenados em DX
 
-mov [bx],ax ;Armazeno nos 2 bits de baixa ordem
-add bx,2
-mov [bx], dx;Armazeno nos 2 bits de alta ordem
+    mov [bx],ax ;Armazeno nos 2 bits de baixa ordem
+    add bx,2
+    mov [bx], dx;Armazeno nos 2 bits de alta ordem
 
-add bx,2
-add si,2
-add di,2
+    add bx,2
+    add si,2
+    add di,2
 
-mov ax,[si]
-mov dx,[di]
-mul dx    ; DX:AX = AX * OPERADOR , nesse caso OPERADOR=dx (valor armazenado nois 2 primeiros bytes)
-;caso tenha OverFlow(OF) o restante dos bits são armazenados em DX
+    mov ax,[si]
+    mov dx,[di]
+    mul dx    ; DX:AX = AX * OPERADOR , nesse caso OPERADOR=dx (valor armazenado nois 2 primeiros bytes)
+    ;caso tenha OverFlow(OF) o restante dos bits são armazenados em DX
 
-mov [bx],ax ;Armazeno nos 2 bits de baixa ordem
-add bx,2
-mov [bx], dx;Armazeno nos 2 bits de alta ordem
+    mov [bx],ax ;Armazeno nos 2 bits de baixa ordem
+    add bx,2
+    mov [bx], dx;Armazeno nos 2 bits de alta ordem
 
-add bx,2
-add si,2
-add di,2
+    add bx,2
+    add si,2
+    add di,2
 
-mov ax,[si]
-mov dx,[di]
-mul dx    ; DX:AX = AX * OPERADOR , nesse caso OPERADOR=dx (valor armazenado nois 2 primeiros bytes)
-;caso tenha OverFlow(OF) o restante dos bits são armazenados em DX
+    mov ax,[si]
+    mov dx,[di]
+    mul dx    ; DX:AX = AX * OPERADOR , nesse caso OPERADOR=dx (valor armazenado nois 2 primeiros bytes)
+    ;caso tenha OverFlow(OF) o restante dos bits são armazenados em DX
 
-mov [bx],ax ;Armazeno nos 2 bits de baixa ordem
-add bx,2
-mov [bx], dx;Armazeno nos 2 bits de alta ordem
+    mov [bx],ax ;Armazeno nos 2 bits de baixa ordem
+    add bx,2
+    mov [bx], dx;Armazeno nos 2 bits de alta ordem
 
-add bx,2
-add si,2
-add di,2
+    add bx,2
+    add si,2
+    add di,2
 
-mov ax,[si]
-mov dx,[di]
-mul dx    ; DX:AX = AX * OPERADOR , nesse caso OPERADOR=dx (valor armazenado nois 2 primeiros bytes)
-;caso tenha OverFlow(OF) o restante dos bits são armazenados em DX
+    mov ax,[si]
+    mov dx,[di]
+    mul dx    ; DX:AX = AX * OPERADOR , nesse caso OPERADOR=dx (valor armazenado nois 2 primeiros bytes)
+    ;caso tenha OverFlow(OF) o restante dos bits são armazenados em DX
 
-mov [bx],ax ;Armazeno nos 2 bits de baixa ordem
-add bx,2
-mov [bx], dx;Armazeno nos 2 bits de alta ordem
+    mov [bx],ax ;Armazeno nos 2 bits de baixa ordem
+    add bx,2
+    mov [bx], dx;Armazeno nos 2 bits de alta ordem
 
-; Terminar o programa e voltar para o sistema operacional
-;mov ah,4ch ;função 4ch (h é de hexadecimal), termina o programa
-int 3
+    ; Terminar o programa e voltar para o sistema operacional
+    ;mov ah,4ch ;função 4ch (h é de hexadecimal), termina o programa
+    int 3
 
 
 

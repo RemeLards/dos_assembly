@@ -81,15 +81,32 @@ draw_original_function:
 		mov		byte[cor],al
 		mov		cx,word[original_functions_values_len]
 		mov		bx,0
+
+draw_original_function_truncate_values:
+	;Trucating values so graph fits on the scale and window
+		mov		cx,word[original_functions_values_len]
+		mov		bx,0
+draw_original_function_truncate_values_loop:
+
+		mov		al,byte[original_function_values+bx]
+		sar		ax,1 ;bitshift that mantains sign Shift Aritmetic Right
+		mov		byte[original_function_values_truncated],ax
+
+		inc 	bx
+		loop	draw_original_function_truncate_values_loop
+
 	
 draw_original_function_loop:
 		mov		ax,word[original_graph_origin]
 		add		ax,bx
 		push	ax	;Puts X on the stack
 
-		movsx	ax,byte[original_function_values+bx] ; Moves with sign extension, replicates the most significant bit to know if its "neg" or "pos"
+		movsx	ax,byte[original_function_values_truncated+bx] ; Moves with sign extension, replicates the most significant bit to know if its "neg" or "pos"
 		add		ax,word[original_graph_origin+2]
-		add		ax,90 ;; Since the graph origin is on -90
+		
+		movsx	dx,byte[graph_height]
+		shr		dx,1
+		add		ax,dx ;; Adds graph_height offset
 		push	ax ;Puts Y on the stack
 
 		call plot_xy
@@ -467,8 +484,8 @@ draw_sair_str_loop:
 draw_graph_text:
 
 		;;DRAWING ON ORIGINAL GRAPH
-        ;;Drawing "-90"
-    	mov     	cx,3			;n�mero de caracteres
+        ;;Drawing "-140"
+    	mov     	cx,4			;n�mero de caracteres
     	mov     	bx,0
     	mov     	dh,14			;linha 0-29
     	mov     	dl,17			;coluna 0-79
@@ -486,7 +503,7 @@ draw_original_min_y_value_str_loop:
         ;;Drawing "0"
     	mov     	cx,1			;n�mero de caracteres
     	mov     	bx,0
-    	mov     	dh,8			;linha 0-29
+    	mov     	dh,9			;linha 0-29
     	mov     	dl,17			;coluna 0-79
 
 		mov		al,branco
@@ -499,10 +516,10 @@ draw_original_zero_str_loop:
 		inc		dl			;avanca a coluna
     	loop    draw_original_zero_str_loop
 
-        ;;Drawing "90"
-    	mov     	cx,2			;n�mero de caracteres
+        ;;Drawing "140"
+    	mov     	cx,3			;n�mero de caracteres
     	mov     	bx,0
-    	mov     	dh,1			;linha 0-29
+    	mov     	dh,3		;linha 0-29
     	mov     	dl,17			;coluna 0-79
 
 		mov		al,branco
@@ -549,8 +566,8 @@ draw_sinal_original_str_loop:
     	loop    draw_sinal_original_str_loop
 
 		;;DRAWING ON CONVOLUTION GRAPH
-        ;;Drawing "-90"
-    	mov     	cx,3			;n�mero de caracteres
+        ;;Drawing "-140"
+    	mov     	cx,4			;n�mero de caracteres
     	mov     	bx,0
     	mov     	dh,29			;linha 0-29
     	mov     	dl,17			;coluna 0-79
@@ -568,7 +585,7 @@ draw_convolution_min_y_value_str_loop:
 		;;Drawing "0"
     	mov     	cx,1			;numero de caracteres
     	mov     	bx,0
-    	mov     	dh,23			;linha 0-29
+    	mov     	dh,24			;linha 0-29
     	mov     	dl,17			;coluna 0-79
 
 		mov		al,branco
@@ -581,10 +598,10 @@ draw_convolution_zero_str_loop:
 		inc		dl			;avanca a coluna
     	loop    draw_convolution_zero_str_loop
 
-        ;;Drawing "90"
-    	mov     	cx,2			;numero de caracteres
+        ;;Drawing "140"
+    	mov     	cx,3			;numero de caracteres
     	mov     	bx,0
-    	mov     	dh,16			;linha 0-29
+    	mov     	dh,18			;linha 0-29
     	mov     	dl,17			;coluna 0-79
 
 		mov		al,branco
@@ -650,7 +667,7 @@ draw_graph_borders:
 		;Drawing ORIGINAL GRAPH VERTICAL/HORIZONTAL LINES
 
 		xor		cx,cx
-		mov		cx,19 ;vai desenhar 19 vezes
+		mov		cx,15 ;vai desenhar 16 vezes
 		mov		bx,word[original_graph_origin+2]
 draw_original_graph_borders_horizontal_loop:
 		;Horizontal lines
@@ -693,7 +710,7 @@ draw_original_graph_borders_vertical_loop:
 
 	;Drawing CONVOLUTION GRAPH VERTICAL/HORIZONTAL LINES
 		xor		cx,cx
-		mov		cx,19 ;vai desenhar 20 vezes
+		mov		cx,15 ;vai desenhar 16 vezes
 		mov		bx,word[convolution_graph_origin+2]
 
 draw_convulution_graph_borders_horizontal_loop:
@@ -1532,18 +1549,18 @@ sinal_original_string		db			'Sinal Original'
 sinal_convoluido_string		db			'Sinal Convoluido'
 
 zero_string			db		'0'
-max_y_value_string	db		'90'
+max_y_value_string	db		'140'
 
-min_y_value_string	db		'-90'
+min_y_value_string	db		'-140'
 
 max_x_value_string	db		'490'
 
 graph_color			db		verde
-graph_height		dw		180
+graph_height		dw		140
 graph_length		dw		490 ;o programa lê de 485 em 485, mas a escala tem que ser de 10 em 10
 
-original_graph_origin 		dw		147,263 ;;subi em 90 a origem -> 263 + 90
-convolution_graph_origin 	dw		147,23 ;; subi em 90 a origem -> 23 + 90
+original_graph_origin 		dw		147,263 
+convolution_graph_origin 	dw		147,23 
 
 ;Declarando estado que o mouse estava antes de iniciar o DOSBOX
 
@@ -1556,6 +1573,7 @@ file_line_buffer		resb		17
 filename_handler			resw	1
 filename_with_values 		db 		'numbers.txt',0
 original_function_values 		resb 		485
+original_function_values_truncated 		resb 		485
 original_functions_values_len	dw		0
 original_function_color			db		amarelo
 
