@@ -89,8 +89,8 @@ draw_original_function_truncate_values:
 draw_original_function_truncate_values_loop:
 
 		mov		al,byte[original_function_values+bx]
-		sar		ax,1 ;bitshift that mantains sign Shift Aritmetic Right
-		mov		byte[original_function_values_truncated],ax
+		sar		al,1 ;bitshift that mantains sign Shift Aritmetic Right
+		mov		byte[original_function_values_truncated],al
 
 		inc 	bx
 		loop	draw_original_function_truncate_values_loop
@@ -137,52 +137,58 @@ execute_abrir_open_file:
 	
 execute_abrir_read_file:
 		mov		bx,0
-		mov		cx,485
-execute_abrir_read_file_loop:
+		mov		cx,file_max_line_read
+execute_abrir_read_file_loop_start:
 	;Reading the file
 		push	cx
 		push	bx
 		call	read_filename
-
+		jnc 	execute_abrir_read_file_eof_test
+		jmp		menu_loop
+execute_abrir_read_file_eof_test:
 		cmp 	ax,0 ; is EOF reached?
-		jne 	execute_abrir_end ;EOF reached
-		
+		jne		execute_abrir_read_file_ascii2bin
+		je 		execute_abrir_end ;EOF reached
+
+execute_abrir_read_file_ascii2bin:
+
 		;;Converter ASCII em numero
-		mov 	cl,byte[file_line_buffer+15]
+		xor		cx,cx ;So the loop value in correctly CL
+		mov		cl,byte[file_line_buffer+15]
 		dec		cl
+
+		xor		ax,ax ;So the value is correctly AL
 		mov 	al,byte[file_line_buffer+3]
 		sub 	al,'0' ;; On AX contains the first value of the number
 
-		mov 	bl,1 ;; se CL != -1, lê pelo menos o próximo numero
+		mov 	bx,1 ;; se CL != -1, lê pelo menos o próximo numero, usando para percorrer o buffer
+		mov		dh,10 ;; MUL Operand
 
 		cmp cl,-1
-		je execute_abrir_ascii_loop_end ;; means CL was 0
-execute_abrir_ascii_loop:
+		je execute_abrir_read_file_ascii2bin_loop_end ;; means CL was 0
+execute_abrir_read_file_ascii2bin_loop:
 
-		mov		bh,10
-		mul		bh
+		mul		dh
 		add		al,byte[file_line_buffer+4+bx]
-		inc 	bl
+		inc 	bx
 
-		loop execute_abrir_ascii_loop
+		loop execute_abrir_read_file_ascii2bin_loop
 
-execute_abrir_ascii_loop_end:
+execute_abrir_read_file_ascii2bin_loop_end:
 		;;Moves the value to the vector
 		pop		bx
 		mov		byte[original_function_values+bx],al
+		inc		bx ;; To put the next byte on the next memory address
 
 		;;Check if it's negative
 		mov 	al,byte[file_line_buffer+2]
 		cmp 	al,'-'
-		je 		execute_abrir_is_negative
-		jmp 	execute_abrir_read_file_loop_end
-
+		jne 	execute_abrir_read_file_loop_end
 execute_abrir_is_negative:
 		neg		byte[original_function_values+bx]
 execute_abrir_read_file_loop_end:
-		inc		bx
 		pop		cx 	;If EOF not reached, recover context and keep reading
-		loop	execute_abrir_read_file_loop
+		loop	execute_abrir_read_file_loop_start
 
 execute_abrir_end:
 	;retorno pro loop do menu
@@ -190,7 +196,7 @@ execute_abrir_end:
 		mov		word[original_functions_values_len],bx
 		pop		cx
 
-		call	draw_original_function
+		; call	draw_original_function
 
 		jmp 	menu_loop
 
@@ -1477,7 +1483,7 @@ read_filename:
 
 segment data
 
-cor		db		branco_intenso
+cor						db		branco_intenso
 
 ;	I R G B COR
 ;	0 0 0 0 preto
@@ -1497,85 +1503,84 @@ cor		db		branco_intenso
 ;	1 1 1 0 amarelo
 ;	1 1 1 1 branco intenso
 
-preto		equ		0
-azul		equ		1
-verde		equ		2
-cyan		equ		3
-vermelho	equ		4
-magenta		equ		5
-marrom		equ		6
-branco		equ		7
-cinza		equ		8
-azul_claro	equ		9
-verde_claro	equ		10
-cyan_claro	equ		11
-rosa		equ		12
-magenta_claro	equ		13
-amarelo		equ		14
-branco_intenso	equ		15
+	preto				equ		0
+	azul				equ		1
+	verde				equ		2
+	cyan				equ		3
+	vermelho			equ		4
+	magenta				equ		5
+	marrom				equ		6
+	branco				equ		7
+	cinza				equ		8
+	azul_claro			equ		9
+	verde_claro			equ		10
+	cyan_claro			equ		11
+	rosa				equ		12
+	magenta_claro		equ		13
+	amarelo				equ		14
+	branco_intenso		equ		15
 
-modo_anterior	db		0
-linha   	dw  		0
-coluna  	dw  		0
-deltax		dw		0
-deltay		dw		0	
-mens    	db  		'Funcao Grafica'
+	modo_anterior		db		0
+	linha   			dw  	0
+	coluna  			dw  	0
+	deltax				dw		0
+	deltay				dw		0	
+	mens    			db  	'Funcao Grafica'
 
 
 ;; Declarando Variáveis necessárias para facilitar o desenvolvimento do código
-delay_ammount dw 50
-last_mouse_pos_click resw 2
+	delay_ammount dw 50
+	last_mouse_pos_click resw 2
 
 
 ;Declarando Textos da Interface
-abrir_string        db     'Abrir'
-abrir_color			db		branco
-arrow_string        db     '--->'
-arrow_color			db 		branco
-fir1_string         db     'FIR 1'
-fir1_color			db		branco
-fir2_string         db     'FIR 2'
-fir2_color			db		branco
-fir3_string         db     'FIR 3'
-fir3_color			db		branco
-negative_one_n_power_string db '(-1)^n'
-negative_one_n_power_color	db		branco
-sair_string        	db      'Sair'
-sair_color			db		branco
+	abrir_string        			db     		'Abrir'
+	abrir_color						db			branco
+	arrow_string        			db     		'--->'
+	arrow_color						db 			branco
+	fir1_string         			db     		'FIR 1'
+	fir1_color						db			branco
+	fir2_string         			db     		'FIR 2'
+	fir2_color						db			branco
+	fir3_string         			db     		'FIR 3'
+	fir3_color						db			branco
+	negative_one_n_power_string		db 			'(-1)^n'
+	negative_one_n_power_color		db			branco
+	sair_string        				db      	'Sair'
+	sair_color						db			branco
 
 ;Declarando Textos E Origem dos Gráficos
 
-sinal_original_string		db			'Sinal Original'
-sinal_convoluido_string		db			'Sinal Convoluido'
+	sinal_original_string		db			'Sinal Original'
+	sinal_convoluido_string		db			'Sinal Convoluido'
+	zero_string					db			'0'
+	max_y_value_string			db			'140'
+	min_y_value_string			db			'-140'
+	max_x_value_string			db			'490'
 
-zero_string			db		'0'
-max_y_value_string	db		'140'
+	graph_color					db			verde
+	graph_height				dw			140
+	graph_length				dw			490 ;o programa lê de 485 em 485, mas a escala tem que ser de 10 em 10
 
-min_y_value_string	db		'-140'
-
-max_x_value_string	db		'490'
-
-graph_color			db		verde
-graph_height		dw		140
-graph_length		dw		490 ;o programa lê de 485 em 485, mas a escala tem que ser de 10 em 10
-
-original_graph_origin 		dw		147,263 
-convolution_graph_origin 	dw		147,23 
+	original_graph_origin 		dw			147,263 
+	convolution_graph_origin 	dw			147,23 
 
 ;Declarando estado que o mouse estava antes de iniciar o DOSBOX
 
-initial_mouse_state 		resb 		496 ;Usei o programa de printar numero em ASCII pra ver antes
+	initial_mouse_state 		resb 		496 ;Usei o programa de printar numero em ASCII pra ver antes
 
 ;Declarando variáveis necessárias para calcular os pontos do grafico
-file_line_len		equ		17
-file_line_buffer		resb		17
+	file_line_len							equ			17
+	file_line_buffer						resb		17
+	file_max_line_read						equ			485
 
-filename_handler			resw	1
-filename_with_values 		db 		'numbers.txt',0
-original_function_values 		resb 		485
-original_function_values_truncated 		resb 		485
-original_functions_values_len	dw		0
-original_function_color			db		amarelo
+	filename_handler						resw		1
+	filename_with_values					db 			'C:sinalep.txt',0
+
+	original_function_values 				resb 		485
+	original_function_values_truncated 		resb 		485
+	original_functions_values_len			dw			0
+	original_function_color					db			amarelo
 
 ;*************************************************************************
 segment stack stack
