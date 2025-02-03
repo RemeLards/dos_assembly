@@ -20,14 +20,21 @@ segment code
 		mov     	ah,0
 		int     	10h
 
+; salvando estado inicial do mouse
+		; mov			ax,data
+		; mov 		es,ax ;usa ES:DX, mas como a variável está em DS, fazemos ES apontar para DS
+		; mov			dx,initial_mouse_state
+		; mov 		ax, 0016h       ;funcão "16h" da interrupção "33h"
+		; int 		33h              
+
 ; inicializa o drive do mouse
 		mov 		ax, 0
 		int 		33h
 
 ; posiciona acima do meio da tela para não estragar o desenho da linha do centro
 		mov 		ax,4
-		mov 		cx,239
-		mov 		dx,100
+		mov 		cx,100 	;X
+		mov 		dx,30	;Y
 		int 		33h
 
 ; mostrar o cursor na tela
@@ -50,10 +57,13 @@ menu_start:
 	;Doing Borders
         call    draw_border
         call    draw_buttons_borders
+
         call    draw_graph_borders
+		call	draw_graph_text
+
 
 menu_loop:
-	;Printing text on the boxes
+	;Printing text on the boxes (need to draw every loop since the color CAN be changed any time)
         call    draw_buttons_text
 
 	;Checks mouse info
@@ -64,26 +74,108 @@ menu_loop:
 
         jmp 	menu_loop
 
+
+draw_original_function:
+	;redraw the graphs, so this function can be reused
+		mov		al,byte[original_function_color]
+		mov		byte[cor],al
+		mov		cx,word[original_functions_values_len]
+		mov		bx,0
+	
+draw_original_function_loop:
+		mov		ax,word[original_graph_origin]
+		add		ax,bx
+		push	ax	;Puts X on the stack
+
+		movsx	ax,byte[original_function_values+bx] ; Moves with sign extension, replicates the most significant bit to know if its "neg" or "pos"
+		add		ax,word[original_graph_origin+2]
+		add		ax,90 ;; Since the graph origin is on -90
+		push	ax ;Puts Y on the stack
+
+		call plot_xy
+
+		inc bx
+		loop draw_original_function_loop
+draw_original_function_end:
+		ret
+
 ;Execute Buttons Routine
 execute_abrir:
 	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
 	;Menos o botão que foi clicado
 
-	mov 	byte[abrir_color],amarelo
-	mov 	byte[arrow_color],branco
-	mov 	byte[fir1_color],branco
-	mov 	byte[fir2_color],branco
-	mov 	byte[fir3_color],branco
-	mov 	byte[negative_one_n_power_color], branco
-	mov 	byte[sair_color],branco
+		mov 	byte[abrir_color],amarelo
+		mov 	byte[arrow_color],branco
+		mov 	byte[fir1_color],branco
+		mov 	byte[fir2_color],branco
+		mov 	byte[fir3_color],branco
+		mov 	byte[negative_one_n_power_color], branco
+		mov 	byte[sair_color],branco
+execute_abrir_open_file:
+	;Opening the file
 
-	;; Faco o que a opcao deve fazer
-	;...
-	;...
-	;...
+		call 	open_filename
+		jnc 	execute_abrir_read_file
+		jmp 	menu_loop ;Error with the file
+	
+execute_abrir_read_file:
+		mov		bx,0
+		mov		cx,485
+execute_abrir_read_file_loop:
+	;Reading the file
+		push	cx
+		push	bx
+		call	read_filename
 
+		cmp 	ax,0 ; is EOF reached?
+		jne 	execute_abrir_end ;EOF reached
+		
+		;;Converter ASCII em numero
+		mov 	cl,byte[file_line_buffer+15]
+		dec		cl
+		mov 	al,byte[file_line_buffer+3]
+		sub 	al,'0' ;; On AX contains the first value of the number
+
+		mov 	bl,1 ;; se CL != -1, lê pelo menos o próximo numero
+
+		cmp cl,-1
+		je execute_abrir_ascii_loop_end ;; means CL was 0
+execute_abrir_ascii_loop:
+
+		mov		bh,10
+		mul		bh
+		add		al,byte[file_line_buffer+4+bx]
+		inc 	bl
+
+		loop execute_abrir_ascii_loop
+
+execute_abrir_ascii_loop_end:
+		;;Moves the value to the vector
+		pop		bx
+		mov		byte[original_function_values+bx],al
+
+		;;Check if it's negative
+		mov 	al,byte[file_line_buffer+2]
+		cmp 	al,'-'
+		je 		execute_abrir_is_negative
+		jmp 	execute_abrir_read_file_loop_end
+
+execute_abrir_is_negative:
+		neg		byte[original_function_values+bx]
+execute_abrir_read_file_loop_end:
+		inc		bx
+		pop		cx 	;If EOF not reached, recover context and keep reading
+		loop	execute_abrir_read_file_loop
+
+execute_abrir_end:
 	;retorno pro loop do menu
-	jmp 	menu_loop
+		pop		bx
+		mov		word[original_functions_values_len],bx
+		pop		cx
+
+		call	draw_original_function
+
+		jmp 	menu_loop
 
 execute_arrow:
 	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
@@ -372,6 +464,172 @@ draw_sair_str_loop:
     
         ret
 
+draw_graph_text:
+
+		;;DRAWING ON ORIGINAL GRAPH
+        ;;Drawing "-90"
+    	mov     	cx,3			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,14			;linha 0-29
+    	mov     	dl,17			;coluna 0-79
+
+		mov		al,branco
+		mov		byte[cor],al
+draw_original_min_y_value_str_loop:
+		call	cursor
+    	mov     al,[bx+min_y_value_string]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    draw_original_min_y_value_str_loop
+
+        ;;Drawing "0"
+    	mov     	cx,1			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,8			;linha 0-29
+    	mov     	dl,17			;coluna 0-79
+
+		mov		al,branco
+		mov		byte[cor],al
+draw_original_zero_str_loop:
+		call	cursor
+    	mov     al,[bx+zero_string]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    draw_original_zero_str_loop
+
+        ;;Drawing "90"
+    	mov     	cx,2			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,1			;linha 0-29
+    	mov     	dl,17			;coluna 0-79
+
+		mov		al,branco
+		mov		byte[cor],al
+draw_original_max_y_value_str_loop:
+		call	cursor
+    	mov     al,[bx+max_y_value_string]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    draw_original_max_y_value_str_loop
+
+        ;;Drawing "490"
+    	mov     	cx,3			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,14			;linha 0-29
+    	mov     	dl,77			;coluna 0-79
+
+		mov		al,branco
+		mov		byte[cor],al
+draw_original_max_x_value_str_loop:
+		call	cursor
+    	mov     al,[bx+max_x_value_string]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    draw_original_max_x_value_str_loop
+
+
+        ;;Drawing "Sinal Original"
+    	mov     	cx,14			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,1			;linha 0-29
+    	mov     	dl,39			;coluna 0-79
+
+		mov		al,branco
+		mov		byte[cor],al
+draw_sinal_original_str_loop:
+		call	cursor
+    	mov     al,[bx+sinal_original_string]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    draw_sinal_original_str_loop
+
+		;;DRAWING ON CONVOLUTION GRAPH
+        ;;Drawing "-90"
+    	mov     	cx,3			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,29			;linha 0-29
+    	mov     	dl,17			;coluna 0-79
+
+		mov		al,branco
+		mov		byte[cor],al
+draw_convolution_min_y_value_str_loop:
+		call	cursor
+    	mov     al,[bx+min_y_value_string]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    draw_convolution_min_y_value_str_loop
+
+		;;Drawing "0"
+    	mov     	cx,1			;numero de caracteres
+    	mov     	bx,0
+    	mov     	dh,23			;linha 0-29
+    	mov     	dl,17			;coluna 0-79
+
+		mov		al,branco
+		mov		byte[cor],al
+draw_convolution_zero_str_loop:
+		call	cursor
+    	mov     al,[bx+zero_string]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    draw_convolution_zero_str_loop
+
+        ;;Drawing "90"
+    	mov     	cx,2			;numero de caracteres
+    	mov     	bx,0
+    	mov     	dh,16			;linha 0-29
+    	mov     	dl,17			;coluna 0-79
+
+		mov		al,branco
+		mov		byte[cor],al
+draw_convolution_max_y_value_str_loop:
+		call	cursor
+    	mov     al,[bx+max_y_value_string]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    draw_convolution_max_y_value_str_loop
+
+        ;;Drawing "490"
+    	mov     	cx,3			;numero de caracteres
+    	mov     	bx,0
+    	mov     	dh,29			;linha 0-29
+    	mov     	dl,77			;coluna 0-79
+
+		mov		al,branco
+		mov		byte[cor],al
+draw_convolution_max_x_value_str_loop:
+		call	cursor
+    	mov     al,[bx+max_x_value_string]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    draw_convolution_max_x_value_str_loop
+
+        ;;Drawing "Sinal Convoluido"
+    	mov     	cx,16			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,16			;linha 0-29
+    	mov     	dl,39			;coluna 0-79
+
+		mov		al,branco
+		mov		byte[cor],al
+draw_sinal_convoluido_str_loop:
+		call	cursor
+    	mov     al,[bx+sinal_convoluido_string]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    draw_sinal_convoluido_str_loop
+
+		ret
 
 draw_graph_borders:
         ;Since almost all borders are already drawn
@@ -387,6 +645,95 @@ draw_graph_borders:
 		mov		ax,239 ;y2
 		push	ax
 		call	line ;line(x1,y1,x2,y2)
+
+		;Drawing Graph Lines
+		;Drawing ORIGINAL GRAPH VERTICAL/HORIZONTAL LINES
+
+		xor		cx,cx
+		mov		cx,19 ;vai desenhar 19 vezes
+		mov		bx,word[original_graph_origin+2]
+draw_original_graph_borders_horizontal_loop:
+		;Horizontal lines
+		mov		al,byte[graph_color]
+        mov		byte[cor],al
+		mov		ax,word[original_graph_origin] ;x1
+		push	ax
+		mov		ax,bx ;y1
+		push	ax
+		mov		ax,word[original_graph_origin] ;x2 
+		add		ax,[graph_length]
+		push	ax
+		mov		ax,bx  ;y2
+		push	ax
+		call	line ;line(x1,y1,x2,y2)
+
+		add 	bx,10 	;pulo 10 pixeis
+		loop draw_original_graph_borders_horizontal_loop
+
+		xor		cx,cx
+		mov		cx,50	;vai desenhar 20 vezes
+		mov		bx,word[original_graph_origin]
+draw_original_graph_borders_vertical_loop:
+		;Horizontal lines
+		mov		al,byte[graph_color]
+        mov		byte[cor],al
+		mov		ax,bx ;x1
+		push	ax
+		mov		ax,word[original_graph_origin+2] ;y1
+		push	ax
+		mov		ax,bx;x2 
+		push	ax
+		mov		ax,word[original_graph_origin+2]   ;y2
+		add		ax,[graph_height]
+		push	ax
+		call	line 	;line(x1,y1,x2,y2)
+
+		add 	bx,10	;pulo 10 pixeis
+		loop draw_original_graph_borders_vertical_loop
+
+	;Drawing CONVOLUTION GRAPH VERTICAL/HORIZONTAL LINES
+		xor		cx,cx
+		mov		cx,19 ;vai desenhar 20 vezes
+		mov		bx,word[convolution_graph_origin+2]
+
+draw_convulution_graph_borders_horizontal_loop:
+		;Horizontal lines
+		mov		al,byte[graph_color]
+        mov		byte[cor],al
+		mov		ax,word[convolution_graph_origin] ;x1
+		push	ax
+		mov		ax,bx ;y1
+		push	ax
+		mov		ax,word[convolution_graph_origin] ;x2 
+		add		ax,[graph_length]
+		push	ax
+		mov		ax,bx  ;y2
+		push	ax
+		call	line ;line(x1,y1,x2,y2)
+
+		add 	bx,10 	;pulo 10 pixeis
+		loop draw_convulution_graph_borders_horizontal_loop
+
+		xor		cx,cx
+		mov		cx,50	;vai desenhar 20 vezes
+		mov		bx,word[convolution_graph_origin]
+draw_convolution_graph_borders_vertical_loop:
+		;Horizontal lines
+		mov		al,byte[graph_color]
+        mov		byte[cor],al
+		mov		ax,bx ;x1
+		push	ax
+		mov		ax,word[convolution_graph_origin+2] ;y1
+		push	ax
+		mov		ax,bx;x2 
+		push	ax
+		mov		ax,word[convolution_graph_origin+2]   ;y2
+		add		ax,[graph_height]
+		push	ax
+		call	line 	;line(x1,y1,x2,y2)
+
+		add 	bx,10	;pulo 10 pixeis
+		loop draw_convolution_graph_borders_vertical_loop
 
         ret
 
@@ -535,11 +882,21 @@ draw_border:
 
 		
 quit:
- 		mov    	ah,08h
- 		int     21h
 		mov  	ah,0   			; set video mode
 		mov  	al,[modo_anterior]   	; modo anterior
 		int  	10h
+
+		;recuperando estado inicial do mouse
+		; mov			ax,data
+		; mov 		es,ax ;usa ES:DX, mas como a variável está em DS, fazemos ES apontar para DS
+		; mov			dx,initial_mouse_state
+		; mov 		ax, 0017h       ;funcão "17h" da interrupção "33h"
+		; int 		33h 
+
+		; mostrar o cursor na tela
+		; mov 		ax, 1
+		; int 		33h
+
 		mov ax,4c00h ; função de encerrar o programa caso "int 21h" seja chamado depois,
 		;o mesmo que fazer "mov ah 4ch", mas provavelmente "al" não é 0, por isso o uso de 2 bytes em "4c00h"
 		int 21h ; encerra o programa 
@@ -1079,6 +1436,28 @@ del1:
 	loop del2 ; No loop del2, cx é decrementado até que seja zero
 	ret
 
+open_filename:
+		mov 	dx,filename_with_values ;Filename
+		mov 	al,0 ; access mode, 0 = read, 1 = write, 2 = read/write
+		mov 	ah, 3dh ;int21h function number
+		int 	21h
+
+		mov		word[filename_handler],ax
+
+		ret
+
+read_filename:
+	;File with no error means AX contains the file handler pointer
+		mov 	bx,word[filename_handler] ; passing the handler to BX
+		mov 	cx,file_line_len ;numbers of byte to read
+		mov 	dx,file_line_buffer ;pointer to buffer
+
+		mov 	ah,3fh ;function 3fh
+		int		21h
+
+		add		word[filename_handler],file_line_len
+		ret
+
 segment data
 
 cor		db		branco_intenso
@@ -1144,8 +1523,41 @@ fir3_string         db     'FIR 3'
 fir3_color			db		branco
 negative_one_n_power_string db '(-1)^n'
 negative_one_n_power_color	db		branco
-sair_string        db      'Sair'
-sair_color	db		branco
+sair_string        	db      'Sair'
+sair_color			db		branco
+
+;Declarando Textos E Origem dos Gráficos
+
+sinal_original_string		db			'Sinal Original'
+sinal_convoluido_string		db			'Sinal Convoluido'
+
+zero_string			db		'0'
+max_y_value_string	db		'90'
+
+min_y_value_string	db		'-90'
+
+max_x_value_string	db		'490'
+
+graph_color			db		verde
+graph_height		dw		180
+graph_length		dw		490 ;o programa lê de 485 em 485, mas a escala tem que ser de 10 em 10
+
+original_graph_origin 		dw		147,263 ;;subi em 90 a origem -> 263 + 90
+convolution_graph_origin 	dw		147,23 ;; subi em 90 a origem -> 23 + 90
+
+;Declarando estado que o mouse estava antes de iniciar o DOSBOX
+
+initial_mouse_state 		resb 		496 ;Usei o programa de printar numero em ASCII pra ver antes
+
+;Declarando variáveis necessárias para calcular os pontos do grafico
+file_line_len		equ		17
+file_line_buffer		resb		17
+
+filename_handler			resw	1
+filename_with_values 		db 		'numbers.txt',0
+original_function_values 		resb 		485
+original_functions_values_len	dw		0
+original_function_color			db		amarelo
 
 ;*************************************************************************
 segment stack stack
