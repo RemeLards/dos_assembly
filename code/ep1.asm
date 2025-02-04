@@ -65,7 +65,6 @@ menu_start:
 menu_loop:
 	;Printing text on the boxes (need to draw every loop since the color CAN be changed any time)
         call    draw_buttons_text
-
 	;Checks mouse info
 		call	get_mouse_info
 	
@@ -74,7 +73,63 @@ menu_loop:
 
         jmp 	menu_loop
 
+
+execute_convolution_function:
+	cmp 	word[convolution_function_option],0
+	je 		execute_convolution_function_ret
+
+execute_convolution_function_fir1:
+	cmp 	word[convolution_function_option],1
+	jne 	execute_convolution_function_fir2
+	; call	convolute_fir1
+	jmp 	execute_convolution_function_ret
+
+execute_convolution_function_fir2:
+	cmp 	word[convolution_function_option],2
+	jne		execute_convolution_function_fir3
+	; call	convolute_fir2
+	jmp 	execute_convolution_function_ret
+
+execute_convolution_function_fir3:
+	cmp 	word[convolution_function_option],3
+	jne 	execute_convolution_function_negative_one_n_power
+	; call	convolute_fir3
+	jmp 	execute_convolution_function_ret
+
+execute_convolution_function_negative_one_n_power:
+	cmp 	word[convolution_function_option],4
+	jne 	execute_convolution_function_ret
+	call	convolute_negative_one_n_power
+	jmp 	execute_convolution_function_ret
+
+execute_convolution_function_ret:
+	ret
+
+convolute_negative_one_n_power:
+convolute_negative_one_n_power_values:
+	mov		cx,word[original_function_values_len]
+	mov		bx,0
+convolute_negative_one_n_power_values_loop:
+
+	mov		ax,word[original_function_values+bx]
+	mov		word[convoluted_function_values+bx],ax
+
+	test	bx,1 ; Test if the LSB is 0 or 1
+	jz		convolute_negative_one_n_power_values_loop_tail
+convolute_negative_one_n_power_values_loop_negate:
+	neg		word[convoluted_function_values+bx]
+convolute_negative_one_n_power_values_loop_tail:
+	inc		bx
+	loop	convolute_negative_one_n_power_values_loop
+	
+	mov		word[convoluted_function_values_len],bx
+convolute_negative_one_n_power_ret:
+	ret
+
+
 get_function_values:
+		cmp		byte[file_open_flag],0
+		je		get_function_values_ret
 get_function_values_read_file:
 		mov		bx,0
         mov     cx,file_max_line_read
@@ -90,6 +145,9 @@ get_function_values_read_file_eof_test:
 		jne		get_function_values_read_file_ascii2bin
         pop     bx
         pop     cx
+
+		call	close_file
+		mov		byte[file_open_flag],0
 		je 		get_function_values_end ;EOF reached
 
 get_function_values_read_file_ascii2bin:
@@ -133,10 +191,9 @@ get_function_values_read_file_loop_end:
 		loop	get_function_values_read_file_loop_start
 get_function_values_end:
 		mov		word[original_function_values_len],bx
+		add		word[original_function_ammount_num_read],bx
 get_function_values_ret:
 		ret
-
-	
 
 
 draw_convoluted_function:
@@ -145,6 +202,8 @@ draw_convoluted_function:
 		pushf                        ;coloca os flags na pilha
 ;redraw the graphs, so this function can be reused
 ;"Cor" var needs to be set before using this function 
+		cmp 	word[convoluted_function_values_len],0
+		je		draw_convoluted_function_end
 draw_convoluted_function_truncate_values:
 ;;Trucating values so graph fits on the scale and window
 		mov		cx,word[convoluted_function_values_len]
@@ -194,7 +253,7 @@ draw_convoluted_function_loop:
 draw_convoluted_function_end:
 		popf
 		pop		bp
-		ret
+		ret		
 
 
 draw_original_function:
@@ -203,6 +262,8 @@ draw_original_function:
 		pushf                        ;coloca os flags na pilha
 ;redraw the graphs, so this function can be reused
 ;"Cor" var needs to be set before using this function 
+		; cmp		byte[file_open_flag],0
+		; je		draw_original_function_end
 draw_original_function_truncate_values:
 ;;Trucating values so graph fits on the scale and window
 		mov		cx,word[original_function_values_len]
@@ -264,24 +325,33 @@ execute_abrir:
 		mov 	byte[negative_one_n_power_color], branco
 		mov 	byte[sair_color],branco
 execute_abrir_open_file:
-		cmp		word[original_function_values_len],0
-		je		execute_abrir_can_open_file
+		cmp		byte[file_open_flag],1			;file open
+		je		execute_abrir_close_existing_file
+		cmp		word[original_function_values_len],0 ;file closed but values are still present
+		jg		execute_abrir_draw_after_closing_existing_file
+		jmp		execute_abrir_can_open_file
 execute_abrir_close_existing_file:
 		call	close_file
-		;;Erase old graph
+		mov		word[original_function_ammount_num_read],0
+		; ;;Erase old graphs
+execute_abrir_draw_after_closing_existing_file:
 		mov 	al,preto
 		mov 	byte[cor],al
 		call	draw_original_function
+		call	draw_convoluted_function
 		call	draw_graph_borders
 
+		mov		word[convolution_function_option],0
 		jc		execute_abrir_ret
 execute_abrir_can_open_file:		
 ;;Opening the file
+		mov		byte[file_open_flag],1
 		call 	open_file
 		jnc 	execute_abrir_get_initial_function_values
 		jmp		execute_abrir_ret	;Error with the file
 execute_abrir_get_initial_function_values:
 		call	get_function_values
+
 		mov 	al,byte[original_function_color]
 		mov 	byte[cor],al
 		call	draw_original_function
@@ -301,30 +371,40 @@ execute_arrow:
 		mov 	byte[fir3_color],branco
 		mov 	byte[negative_one_n_power_color], branco
 		mov 	byte[sair_color],branco
-
+	
+execute_arrow_check_original_len:
 		cmp		word[original_function_values_len],0
 		je		execute_arrow_ret
-
-execute_arrow_erase_current_graphs:
-	;;Erase old graph
+execute_arrow_erase_original_graph:
+	;;Erase original old graph
 		mov 	al,preto
 		mov 	byte[cor],al
 		call	draw_original_function
 		call	draw_graph_borders
-	;; Faco o que a opcao deve fazer
-	;...
-	;...
-	;...
+		
+execute_arrow_check_convoluted_len:
+		cmp		word[convolution_function_option],0
+		je		execute_arrow_draw_graphs
+
+execute_arrow_erase_convoluted_graph:
+	;;Erase convoluted old graph
+		mov 	al,preto
+		mov 	byte[cor],al
+		call	draw_convoluted_function
+		call	draw_graph_borders
 execute_arrow_draw_graphs:
-execute_arrow_draw_next_original_graph:
 		call	get_function_values
+execute_arrow_draw_next_original_graph:
 		mov 	al,byte[original_function_color]
 		mov 	byte[cor],al
 		call	draw_original_function
-	;;pritns new graph
-		; mov 	al,byte[original_function_color]
-		; mov 	byte[cor],al
-		; call	draw_original_function
+		cmp		word[convolution_function_option],0
+		je		execute_arrow_ret
+execute_arrow_draw_next_convoluted_graph:
+		call	execute_convolution_function
+		mov 	al,byte[original_function_color]
+		mov 	byte[cor],al
+		call	draw_convoluted_function
 	;retorno pro loop do menu
 
 execute_arrow_ret:
@@ -402,26 +482,17 @@ execute_negative_one_n_power:
 	mov 	byte[negative_one_n_power_color], amarelo
 	mov 	byte[sair_color],branco
 
+	mov		word[convolution_function_option],4 ;Choses convolution option
 	cmp		word[original_function_values_len],0
-	je		execute_negative_one_n_power_ret
-execute_negative_one_n_power_convolution_values:
-	mov		cx,word[original_function_values_len]
-	mov		bx,word[one_n_power_sample_number]
+	jne		execute_negative_one_n_power_convolution
 
-execute_negative_one_n_power_convolution_values_loop:
-
-	mov		ax,word[original_function_values+bx]
-	mov		word[convoluted_function_values+bx],ax
-
-	test	bx,1 ; Test if the LSB is 0 or 1
-	jz		execute_negative_one_n_power_convolution_values_loop_tail
-execute_negative_one_n_power_convolution_values_loop_negate:
-	neg		word[convoluted_function_values+bx]
-execute_negative_one_n_power_convolution_values_loop_tail:
-	inc		bx
-	loop	execute_negative_one_n_power_convolution_values_loop
-
-	mov		word[one_n_power_sample_number],bx
+	mov		word[convolution_function_option],0
+	jmp 	execute_negative_one_n_power_ret
+execute_negative_one_n_power_convolution:
+	call	execute_convolution_function
+	mov 	al,byte[original_function_color]
+	mov 	byte[cor],al
+	call	draw_convoluted_function
 
 execute_negative_one_n_power_ret:
 	;retorno pro loop do menu
@@ -1066,6 +1137,16 @@ quit:
 		; mostrar o cursor na tela
 		; mov 		ax, 1
 		; int 		33h
+		mov		dx,word[original_function_values_len]
+		call	imprimenumero
+
+		mov		dx,word[original_function_ammount_num_read]
+		call	imprimenumero
+
+		mov		bx,word[original_function_values_len]
+		dec		bx
+		movsx	dx,byte[original_function_values+bx]
+		call	imprimenumero
 
 		;;Debugando valores
 
@@ -1598,6 +1679,7 @@ fim_line:
 
 
 delay: ; Esteja atento pois talvez seja importante salvar contexto (no caso, CX, o que NÃO foi feito aqui).
+	push	cx
 	mov cx, word [delay_ammount] ; Carrega “velocidade” em cx (contador para loop)
 	del2:
 	push cx ; Coloca cx na pilha para usa-lo em outro loop
@@ -1606,6 +1688,7 @@ del1:
 	loop del1 ; No loop del1, cx é decrementado até que volte a ser zero
 	pop cx ; Recupera cx da pilha
 	loop del2 ; No loop del2, cx é decrementado até que seja zero
+	pop	cx
 	ret
 
 ;;Funcoes para facilitar abrir,ler e fechar arquivo
@@ -1628,7 +1711,6 @@ read_file:
 		mov 	ah,3fh ;function 3fh
 		int		21h
 
-		add		word[file_bytes_read],file_line_len
 		ret
 
 close_file:
@@ -1727,7 +1809,7 @@ cor						db		branco_intenso
 
 
 ;; Declarando Variáveis necessárias para facilitar o desenvolvimento do código
-	delay_ammount dw 50
+	delay_ammount dw 5
 	last_mouse_pos_click resw 2
 
 
@@ -1772,15 +1854,14 @@ cor						db		branco_intenso
 	file_line_buffer						resb		18
 	file_max_line_read						equ			485
 	file_handler							resw		1
-	file_bytes_read							resw		1
 	file_values								db 			'C:sinalep.txt',0
-
-	convoluted
+	file_open_flag							db			0
 
 	original_function_values 				resb 		485
 	original_function_values_truncated 		resb 		485
 	original_function_values_len			dw			0
 	original_function_color					db			amarelo
+	original_function_ammount_num_read	dw			0
 
 	convoluted_function_values 				resb 		485
 	convoluted_function_values_truncated 	resb 		485
@@ -1789,7 +1870,9 @@ cor						db		branco_intenso
 
 ;Variables for the filters
 
-one_n_power_sample_number		dw		0;
+;Option = 0 (None), Option = 1 (FIR1), Option = 2 (FIR2), Option = 3 (FIR3), Option = 4 ((-1)^n)
+	convolution_function_option				dw		0
+
 
 ;Declarando pra debugar 
     saida: db '00000',13,10,'$'
