@@ -115,7 +115,7 @@ get_function_values_read_file_ascii2bin_loop:
         sub     al,'0'
 
 		inc 	bx
-		loop	get_function_valuesd_file_ascii2bin_loop
+		loop	get_function_values_read_file_ascii2bin_loop
 get_function_values_read_file_ascii2bin_loop_end:
 ; 		;;Moves the value to the vector
 		pop		bx
@@ -177,7 +177,7 @@ draw_convoluted_function_loop:
 		push	ax	;Puts X on the stack
 
 		movsx	ax,byte[convoluted_function_values_truncated+bx] ; Moves with sign extension, replicates the most significant bit to know if its "neg" or "pos"
-		add		ax,word[convoluted_graph_origin+2] ; Origin reference pixel
+		add		ax,word[convolution_graph_origin+2] ; Origin reference pixel
 		mov		dx,word[graph_height] ; Adds origin offset 
 		shr		dx,1
 		add 	ax,dx
@@ -264,77 +264,29 @@ execute_abrir:
 		mov 	byte[negative_one_n_power_color], branco
 		mov 	byte[sair_color],branco
 execute_abrir_open_file:
+		cmp		word[original_function_values_len],0
+		je		execute_abrir_can_open_file
+execute_abrir_close_existing_file:
+		call	close_file
+		;;Erase old graph
+		mov 	al,preto
+		mov 	byte[cor],al
+		call	draw_original_function
+		call	draw_graph_borders
+
+		jc		execute_abrir_ret
+execute_abrir_can_open_file:		
 ;;Opening the file
-
 		call 	open_file
-		jnc 	execute_abrir_read_file
+		jnc 	execute_abrir_get_initial_function_values
 		jmp		execute_abrir_ret	;Error with the file
-execute_abrir_read_file:
-		mov		bx,0
-        mov     cx,file_max_line_read
-execute_abrir_read_file_loop_start:
-	;Reading the file
-        push    cx
-		push	bx
-		call	read_file
-		jnc 	execute_abrir_read_file_eof_test
-		je 		execute_abrir_end;Error reading the file
-execute_abrir_read_file_eof_test:
-		cmp 	ax,0 ; is EOF reached?
-		jne		execute_abrir_read_file_ascii2bin
-        pop     bx
-        pop     cx
-		je 		execute_abrir_end ;EOF reached
-
-execute_abrir_read_file_ascii2bin:
-
-		;;Converter ASCII em numero
-		xor		cx,cx ;So the loop value in correctly CL
-		mov		cl,byte[file_line_buffer+15]
-		sub		cl,'0'
-
-		xor		ax,ax ;So the value is correctly AL
-		mov 	al,byte[file_line_buffer+3]
-		sub 	al,'0' ;; On AX contains the first value of the number
-
-		xor		bx,bx ;So BX starts at 0
-		mov		dl,10 ;; MUL Operand
-
-		cmp cl,0
-		je execute_abrir_read_file_ascii2bin_loop_end ;; means CL was 0
-execute_abrir_read_file_ascii2bin_loop:
-
-		mul		dl
-		add		al,byte[file_line_buffer+5+bx]
-        sub     al,'0'
-
-		inc 	bx
-		loop	execute_abrir_read_file_ascii2bin_loop
-execute_abrir_read_file_ascii2bin_loop_end:
-; 		;;Moves the value to the vector
-		pop		bx
-		mov		byte[original_function_values+bx],al
-
-		;;Check if it's negative
-		mov 	al,byte[file_line_buffer+2]
-		cmp 	al,'-'
-		jne 	execute_abrir_read_file_loop_end
-execute_abrir_is_negative:
-		neg		byte[original_function_values+bx]
-execute_abrir_read_file_loop_end:
-		inc		bx ;
-        pop		cx 	;If EOF not reached, recover context and keep reading
-		loop	execute_abrir_read_file_loop_start
-execute_abrir_end:
-		mov		word[original_function_values_len],bx
-
-	;closing file just for testing
-	    ; call	close_file
-    	; jc		execute_abrir_ret ;Skips graph plot
-
+execute_abrir_get_initial_function_values:
+		call	get_function_values
 		mov 	al,byte[original_function_color]
 		mov 	byte[cor],al
 		call	draw_original_function
+
+		
 execute_abrir_ret:
 		ret
 
@@ -363,7 +315,12 @@ execute_arrow_erase_current_graphs:
 	;...
 	;...
 	;...
-execute_arrow_draw_graphs
+execute_arrow_draw_graphs:
+execute_arrow_draw_next_original_graph:
+		call	get_function_values
+		mov 	al,byte[original_function_color]
+		mov 	byte[cor],al
+		call	draw_original_function
 	;;pritns new graph
 		; mov 	al,byte[original_function_color]
 		; mov 	byte[cor],al
