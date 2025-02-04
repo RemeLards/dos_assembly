@@ -146,22 +146,18 @@ imprimenumero:
     ret
 
 execute_abrir:
-	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
-	;Menos o botão que foi clicado
 execute_abrir_open_file:
 ;;Opening the file
 
 		call 	open_file
 		jnc 	execute_abrir_read_file
 		ret		;Error with the file
-	
 execute_abrir_read_file:
 		mov		bx,0
-		mov		cx,file_max_line_read
-		mov		word[file_bytes_read],0 ;;Need to reset how many bytes you read if you opened again
+        mov     cx,file_max_line_read
 execute_abrir_read_file_loop_start:
 	;Reading the file
-		push	cx
+        push    cx
 		push	bx
 		call	read_file
 		jnc 	execute_abrir_read_file_eof_test
@@ -169,72 +165,62 @@ execute_abrir_read_file_loop_start:
 execute_abrir_read_file_eof_test:
 		cmp 	ax,0 ; is EOF reached?
 		jne		execute_abrir_read_file_ascii2bin
+        pop     bx
+        pop     cx
 		je 		execute_abrir_end ;EOF reached
 
 execute_abrir_read_file_ascii2bin:
 
 		;;Converter ASCII em numero
 		xor		cx,cx ;So the loop value in correctly CL
-		mov 	cl,byte[file_line_buffer+15]
-        sub     cl,'0'
-		dec		cl
-
+		mov		cl,byte[file_line_buffer+15]
+		sub		cl,'0'
 
 		xor		ax,ax ;So the value is correctly AL
 		mov 	al,byte[file_line_buffer+3]
 		sub 	al,'0' ;; On AX contains the first value of the number
 
-		mov 	bx,1 ;; se CL != -1, lê pelo menos o próximo numero, usando para percorrer o buffer
+		xor		bx,bx ;So BX starts at 0
 		mov		dl,10 ;; MUL Operand
-        
-; 		cmp cl,0
-; 		jl execute_abrir_read_file_ascii2bin_loop_end ;; means CL was 0
-; execute_abrir_read_file_ascii2bin_loop:
 
-; 		mul		dl
-; 		add		al,byte[file_line_buffer+4+bx]
+		cmp cl,0
+		je execute_abrir_read_file_ascii2bin_loop_end ;; means CL was 0
+execute_abrir_read_file_ascii2bin_loop:
 
-; 		inc 	bx
+		mul		dl
+		add		al,byte[file_line_buffer+5+bx]
+        sub     al,'0'
 
-; 		loop execute_abrir_read_file_ascii2bin_loop
-
-; execute_abrir_read_file_ascii2bin_loop_end:
+		inc 	bx
+		loop	execute_abrir_read_file_ascii2bin_loop
+execute_abrir_read_file_ascii2bin_loop_end:
 ; 		;;Moves the value to the vector
-; 		pop		bx
-; 		mov		byte[original_function_values+bx],al
+		pop		bx
+		mov		byte[original_function_values+bx],al
 
-; 		;;Check if it's negative
-; 		mov 	al,byte[file_line_buffer+2]
-; 		cmp 	al,'-'
-; ; 		jne 	execute_abrir_read_file_loop_end
-; execute_abrir_is_negative:
-; 		neg		byte[original_function_values+bx]
+		;;Check if it's negative
+		mov 	al,byte[file_line_buffer+2]
+		cmp 	al,'-'
+		jne 	execute_abrir_read_file_loop_end
+execute_abrir_is_negative:
+		neg		byte[original_function_values+bx]
 execute_abrir_read_file_loop_end:
-
-        movsx     dx,al
-        call      imprimenumero
-        mov ah,08h
-        int 21
-
-		inc		bx ;; To put the next byte on the next memory address
-		pop		cx 	;If EOF not reached, recover context and keep reading
+		inc		bx ;
+        pop		cx 	;If EOF not reached, recover context and keep reading
 		loop	execute_abrir_read_file_loop_start
-
 execute_abrir_end:
-	;retorno pro loop do menu
 		mov		word[original_function_values_len],bx
 
-        mov     cx,word[original_function_values_len]
-        mov     bx,0
-execute_abrir_value_test_loop:
-
-        inc     bx
-        loop    execute_abrir_value_test_loop
-
 	;closing file
-		call	close_file
-	
-        ret
+	    ; call	close_file
+    	; jc		execute_abrir_ret ;Skips graph plot
+
+        mov     bx,word[original_function_values_len]
+        dec     bx
+		movsx	dx,byte[original_function_values+bx]
+		call	imprimenumero
+execute_abrir_ret:
+		ret
 
 open_file:
 		mov 	dx,file_values ;Filename
@@ -255,7 +241,6 @@ read_file:
 		mov 	ah,3fh ;function 3fh
 		int		21h
 
-		add		word[file_bytes_read],file_line_len
 		ret
 
 close_file:

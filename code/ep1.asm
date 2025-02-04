@@ -74,18 +74,140 @@ menu_loop:
 
         jmp 	menu_loop
 
+get_function_values:
+get_function_values_read_file:
+		mov		bx,0
+        mov     cx,file_max_line_read
+get_function_values_read_file_loop_start:
+	;Reading the file
+        push    cx
+		push	bx
+		call	read_file
+		jnc 	get_function_values_read_file_eof_test
+		je 		get_function_values_end;Error reading the file
+get_function_values_read_file_eof_test:
+		cmp 	ax,0 ; is EOF reached?
+		jne		get_function_values_read_file_ascii2bin
+        pop     bx
+        pop     cx
+		je 		get_function_values_end ;EOF reached
+
+get_function_values_read_file_ascii2bin:
+
+		;;Converter ASCII em numero
+		xor		cx,cx ;So the loop value in correctly CL
+		mov		cl,byte[file_line_buffer+15]
+		sub		cl,'0'
+
+		xor		ax,ax ;So the value is correctly AL
+		mov 	al,byte[file_line_buffer+3]
+		sub 	al,'0' ;; On AX contains the first value of the number
+
+		xor		bx,bx ;So BX starts at 0
+		mov		dl,10 ;; MUL Operand
+
+		cmp cl,0
+		je get_function_values_read_file_ascii2bin_loop_end ;; means CL was 0
+get_function_values_read_file_ascii2bin_loop:
+
+		mul		dl
+		add		al,byte[file_line_buffer+5+bx]
+        sub     al,'0'
+
+		inc 	bx
+		loop	get_function_valuesd_file_ascii2bin_loop
+get_function_values_read_file_ascii2bin_loop_end:
+; 		;;Moves the value to the vector
+		pop		bx
+		mov		byte[original_function_values+bx],al
+
+		;;Check if it's negative
+		mov 	al,byte[file_line_buffer+2]
+		cmp 	al,'-'
+		jne 	get_function_values_read_file_loop_end
+get_function_values_is_negative:
+		neg		byte[original_function_values+bx]
+get_function_values_read_file_loop_end:
+		inc		bx ;
+        pop		cx 	;If EOF not reached, recover context and keep reading
+		loop	get_function_values_read_file_loop_start
+get_function_values_end:
+		mov		word[original_function_values_len],bx
+get_function_values_ret:
+		ret
+
+	
+
+
+draw_convoluted_function:
+		push 	bp
+		mov	 	bp,sp
+		pushf                        ;coloca os flags na pilha
+;redraw the graphs, so this function can be reused
+;"Cor" var needs to be set before using this function 
+draw_convoluted_function_truncate_values:
+;;Trucating values so graph fits on the scale and window
+		mov		cx,word[convoluted_function_values_len]
+		mov		bx,0
+		xor		ax,ax
+draw_convoluted_function_truncate_values_loop:
+
+		mov		al,byte[convoluted_function_values+bx]
+		sar		al,1 ;bitshift that mantains sign Shift Aritmetic Right
+		mov		byte[convoluted_function_values_truncated+bx],al
+
+		inc 	bx
+		loop	draw_convoluted_function_truncate_values_loop
+
+;Drawing a line to test it
+		mov		cx,word[convoluted_function_values_len]
+		; mov		cx,70
+		mov		bx,0
+
+;****************************IMPORANT****************************	
+;For some weird reason when using "call plot_xy" it was not working properly
+;Looking like it was changing the state of the pointer SP/BP and not retuning properly (program freezing)
+;When I tried pushing every register before the function call, and then poping on the function end
+;It worked, so it will stay this way (need to do ASAP)
+;****************************************************************
+draw_convoluted_function_loop:
+		mov		ax,word[convolution_graph_origin]
+		add		ax,bx
+
+		push	ax	;Puts X on the stack
+
+		movsx	ax,byte[convoluted_function_values_truncated+bx] ; Moves with sign extension, replicates the most significant bit to know if its "neg" or "pos"
+		add		ax,word[convoluted_graph_origin+2] ; Origin reference pixel
+		mov		dx,word[graph_height] ; Adds origin offset 
+		shr		dx,1
+		add 	ax,dx
+
+
+		push	ax ;Puts Y on the stack
+
+		call 	plot_xy
+
+		inc 	bx
+		loop 	draw_convoluted_function_loop
+;****************************MAGIC*******************************
+		
+draw_convoluted_function_end:
+		popf
+		pop		bp
+		ret
+
 
 draw_original_function:
 		push 	bp
 		mov	 	bp,sp
 		pushf                        ;coloca os flags na pilha
-
 ;redraw the graphs, so this function can be reused
 ;"Cor" var needs to be set before using this function 
 draw_original_function_truncate_values:
 ;;Trucating values so graph fits on the scale and window
 		mov		cx,word[original_function_values_len]
 		mov		bx,0
+		xor		ax,ax
 draw_original_function_truncate_values_loop:
 
 		mov		al,byte[original_function_values+bx]
@@ -97,6 +219,7 @@ draw_original_function_truncate_values_loop:
 
 ;Drawing a line to test it
 		mov		cx,word[original_function_values_len]
+		; mov		cx,70
 		mov		bx,0
 
 ;****************************IMPORANT****************************	
@@ -112,10 +235,11 @@ draw_original_function_loop:
 		push	ax	;Puts X on the stack
 
 		movsx	ax,byte[original_function_values_truncated+bx] ; Moves with sign extension, replicates the most significant bit to know if its "neg" or "pos"
-		add		ax,word[original_graph_origin+2]
-		movsx	dx,byte[graph_height]
+		add		ax,word[original_graph_origin+2] ; Origin reference pixel
+		mov		dx,word[graph_height] ; Adds origin offset 
 		shr		dx,1
-		add		ax,dx ;; Adds graph origin offset
+		add 	ax,dx
+
 
 		push	ax ;Puts Y on the stack
 
@@ -132,9 +256,6 @@ draw_original_function_end:
 
 ;Execute Buttons Routine
 execute_abrir:
-	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
-	;Menos o botão que foi clicado
-
 		mov 	byte[abrir_color],amarelo
 		mov 	byte[arrow_color],branco
 		mov 	byte[fir1_color],branco
@@ -142,21 +263,18 @@ execute_abrir:
 		mov 	byte[fir3_color],branco
 		mov 	byte[negative_one_n_power_color], branco
 		mov 	byte[sair_color],branco
-
 execute_abrir_open_file:
 ;;Opening the file
 
 		call 	open_file
 		jnc 	execute_abrir_read_file
-		ret		;Error with the file
-	
+		jmp		execute_abrir_ret	;Error with the file
 execute_abrir_read_file:
 		mov		bx,0
-		mov		cx,file_max_line_read
-		mov		word[file_bytes_read],0 ;;Need to reset how many bytes you read if you opened again
+        mov     cx,file_max_line_read
 execute_abrir_read_file_loop_start:
 	;Reading the file
-		push	cx
+        push    cx
 		push	bx
 		call	read_file
 		jnc 	execute_abrir_read_file_eof_test
@@ -164,6 +282,8 @@ execute_abrir_read_file_loop_start:
 execute_abrir_read_file_eof_test:
 		cmp 	ax,0 ; is EOF reached?
 		jne		execute_abrir_read_file_ascii2bin
+        pop     bx
+        pop     cx
 		je 		execute_abrir_end ;EOF reached
 
 execute_abrir_read_file_ascii2bin:
@@ -172,27 +292,26 @@ execute_abrir_read_file_ascii2bin:
 		xor		cx,cx ;So the loop value in correctly CL
 		mov		cl,byte[file_line_buffer+15]
 		sub		cl,'0'
-		dec		cl
 
 		xor		ax,ax ;So the value is correctly AL
 		mov 	al,byte[file_line_buffer+3]
 		sub 	al,'0' ;; On AX contains the first value of the number
 
-		mov 	bx,1 ;; se CL != -1, lê pelo menos o próximo numero, usando para percorrer o buffer
-		mov		dh,10 ;; MUL Operand
+		xor		bx,bx ;So BX starts at 0
+		mov		dl,10 ;; MUL Operand
 
-		cmp cl,-1
+		cmp cl,0
 		je execute_abrir_read_file_ascii2bin_loop_end ;; means CL was 0
 execute_abrir_read_file_ascii2bin_loop:
 
-		mul		dh
-		add		al,byte[file_line_buffer+4+bx]
+		mul		dl
+		add		al,byte[file_line_buffer+5+bx]
+        sub     al,'0'
+
 		inc 	bx
-
-		loop execute_abrir_read_file_ascii2bin_loop
-
+		loop	execute_abrir_read_file_ascii2bin_loop
 execute_abrir_read_file_ascii2bin_loop_end:
-		;;Moves the value to the vector
+; 		;;Moves the value to the vector
 		pop		bx
 		mov		byte[original_function_values+bx],al
 
@@ -203,20 +322,16 @@ execute_abrir_read_file_ascii2bin_loop_end:
 execute_abrir_is_negative:
 		neg		byte[original_function_values+bx]
 execute_abrir_read_file_loop_end:
-		inc		bx ;; To put the next byte on the next memory address
-		pop		cx 	;If EOF not reached, recover context and keep reading
+		inc		bx ;
+        pop		cx 	;If EOF not reached, recover context and keep reading
 		loop	execute_abrir_read_file_loop_start
-
 execute_abrir_end:
-	;retorno pro loop do menu
 		mov		word[original_function_values_len],bx
 
-	;Cant close file, because it keeps track of the pointer
-	;closing file
-	; call	close_file
-	; jc		execute_abrir_ret ;Skips graph plot
+	;closing file just for testing
+	    ; call	close_file
+    	; jc		execute_abrir_ret ;Skips graph plot
 
-	;Chose graph color
 		mov 	al,byte[original_function_color]
 		mov 	byte[cor],al
 		call	draw_original_function
@@ -235,19 +350,27 @@ execute_arrow:
 		mov 	byte[negative_one_n_power_color], branco
 		mov 	byte[sair_color],branco
 
+		cmp		word[original_function_values_len],0
+		je		execute_arrow_ret
+
+execute_arrow_erase_current_graphs:
 	;;Erase old graph
 		mov 	al,preto
 		mov 	byte[cor],al
 		call	draw_original_function
+		call	draw_graph_borders
 	;; Faco o que a opcao deve fazer
 	;...
 	;...
 	;...
+execute_arrow_draw_graphs
 	;;pritns new graph
-		mov 	al,byte[original_function_color]
-		mov 	byte[cor],al
-		call	draw_original_function
+		; mov 	al,byte[original_function_color]
+		; mov 	byte[cor],al
+		; call	draw_original_function
 	;retorno pro loop do menu
+
+execute_arrow_ret:
 		ret
 
 execute_fir1:
@@ -358,13 +481,7 @@ execute_sair:
 button_press:
 		push 	bp
 		mov	 	bp,sp
-		pushf                        ;coloca os flags na pilha
 		push 	ax
-		push 	bx
-		push	cx
-		push	dx
-		push	si
-		push	di
 
 button_press_start:
 		cmp 	word[last_mouse_pos_click],127
@@ -412,18 +529,13 @@ button_sair_press:
 		jmp 	execute_sair
 
 button_press_return:
-		pop		di
-		pop		si
-		pop		dx
-		pop		cx
-		pop		bx
 		pop		ax
-		popf
 		pop		bp
 		ret
 		
 
 get_mouse_info:
+
 		mov 	al,3 ;Número da função que pega a informação do mouse
 		int 	33h
 
@@ -982,9 +1094,6 @@ quit:
 		; int 		33h
 
 		;;Debugando valores
-		mov		dx,[original_function_values+39]
-		call 	imprimenumero
-
 
 		mov 	ax,4c00h ; função de encerrar o programa caso "int 21h" seja chamado depois,
 		;o mesmo que fazer "mov ah 4ch", mas provavelmente "al" não é 0, por isso o uso de 2 bytes em "4c00h"
@@ -1692,10 +1801,17 @@ cor						db		branco_intenso
 	file_bytes_read							resw		1
 	file_values								db 			'C:sinalep.txt',0
 
+	convoluted
+
 	original_function_values 				resb 		485
 	original_function_values_truncated 		resb 		485
 	original_function_values_len			dw			0
 	original_function_color					db			amarelo
+
+	convoluted_function_values 				resb 		485
+	convoluted_function_values_truncated 	resb 		485
+	convoluted_function_values_len			dw			0
+	convoluted_function_color				db			amarelo
 
 ;Declarando pra debugar 
     saida: db '00000',13,10,'$'
