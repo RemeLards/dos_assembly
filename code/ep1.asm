@@ -76,44 +76,58 @@ menu_loop:
 
 
 draw_original_function:
-	;redraw the graphs, so this function can be reused
-		mov		al,byte[original_function_color]
-		mov		byte[cor],al
-		mov		cx,word[original_functions_values_len]
-		mov		bx,0
+		push 	bp
+		mov	 	bp,sp
+		pushf                        ;coloca os flags na pilha
 
+;redraw the graphs, so this function can be reused
+;"Cor" var needs to be set before using this function 
 draw_original_function_truncate_values:
-	;Trucating values so graph fits on the scale and window
-		mov		cx,word[original_functions_values_len]
+;;Trucating values so graph fits on the scale and window
+		mov		cx,word[original_function_values_len]
 		mov		bx,0
 draw_original_function_truncate_values_loop:
 
 		mov		al,byte[original_function_values+bx]
 		sar		al,1 ;bitshift that mantains sign Shift Aritmetic Right
-		mov		byte[original_function_values_truncated],al
+		mov		byte[original_function_values_truncated+bx],al
 
 		inc 	bx
 		loop	draw_original_function_truncate_values_loop
 
-	
+;Drawing a line to test it
+		mov		cx,word[original_function_values_len]
+		mov		bx,0
+
+;****************************IMPORANT****************************	
+;For some weird reason when using "call plot_xy" it was not working properly
+;Looking like it was changing the state of the pointer SP/BP and not retuning properly (program freezing)
+;When I tried pushing every register before the function call, and then poping on the function end
+;It worked, so it will stay this way (need to do ASAP)
+;****************************************************************
 draw_original_function_loop:
 		mov		ax,word[original_graph_origin]
 		add		ax,bx
+
 		push	ax	;Puts X on the stack
 
 		movsx	ax,byte[original_function_values_truncated+bx] ; Moves with sign extension, replicates the most significant bit to know if its "neg" or "pos"
 		add		ax,word[original_graph_origin+2]
-		
 		movsx	dx,byte[graph_height]
 		shr		dx,1
-		add		ax,dx ;; Adds graph_height offset
+		add		ax,dx ;; Adds graph origin offset
+
 		push	ax ;Puts Y on the stack
 
-		call plot_xy
+		call 	plot_xy
 
-		inc bx
-		loop draw_original_function_loop
+		inc 	bx
+		loop 	draw_original_function_loop
+;****************************MAGIC*******************************
+		
 draw_original_function_end:
+		popf
+		pop		bp
 		ret
 
 ;Execute Buttons Routine
@@ -128,23 +142,25 @@ execute_abrir:
 		mov 	byte[fir3_color],branco
 		mov 	byte[negative_one_n_power_color], branco
 		mov 	byte[sair_color],branco
-execute_abrir_open_file:
-	;Opening the file
 
-		call 	open_filename
+execute_abrir_open_file:
+;;Opening the file
+
+		call 	open_file
 		jnc 	execute_abrir_read_file
-		jmp 	menu_loop ;Error with the file
+		ret		;Error with the file
 	
 execute_abrir_read_file:
 		mov		bx,0
 		mov		cx,file_max_line_read
+		mov		word[file_bytes_read],0 ;;Need to reset how many bytes you read if you opened again
 execute_abrir_read_file_loop_start:
 	;Reading the file
 		push	cx
 		push	bx
-		call	read_filename
+		call	read_file
 		jnc 	execute_abrir_read_file_eof_test
-		jmp		menu_loop
+		je 		execute_abrir_end;Error reading the file
 execute_abrir_read_file_eof_test:
 		cmp 	ax,0 ; is EOF reached?
 		jne		execute_abrir_read_file_ascii2bin
@@ -155,6 +171,7 @@ execute_abrir_read_file_ascii2bin:
 		;;Converter ASCII em numero
 		xor		cx,cx ;So the loop value in correctly CL
 		mov		cl,byte[file_line_buffer+15]
+		sub		cl,'0'
 		dec		cl
 
 		xor		ax,ax ;So the value is correctly AL
@@ -178,7 +195,6 @@ execute_abrir_read_file_ascii2bin_loop_end:
 		;;Moves the value to the vector
 		pop		bx
 		mov		byte[original_function_values+bx],al
-		inc		bx ;; To put the next byte on the next memory address
 
 		;;Check if it's negative
 		mov 	al,byte[file_line_buffer+2]
@@ -187,50 +203,64 @@ execute_abrir_read_file_ascii2bin_loop_end:
 execute_abrir_is_negative:
 		neg		byte[original_function_values+bx]
 execute_abrir_read_file_loop_end:
+		inc		bx ;; To put the next byte on the next memory address
 		pop		cx 	;If EOF not reached, recover context and keep reading
 		loop	execute_abrir_read_file_loop_start
 
 execute_abrir_end:
 	;retorno pro loop do menu
-		pop		bx
-		mov		word[original_functions_values_len],bx
-		pop		cx
+		mov		word[original_function_values_len],bx
 
-		; call	draw_original_function
+	;Cant close file, because it keeps track of the pointer
+	;closing file
+	; call	close_file
+	; jc		execute_abrir_ret ;Skips graph plot
 
-		jmp 	menu_loop
+	;Chose graph color
+		mov 	al,byte[original_function_color]
+		mov 	byte[cor],al
+		call	draw_original_function
+execute_abrir_ret:
+		ret
 
 execute_arrow:
 	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
 	;Menos o botão que foi clicado
 
-	mov 	byte[abrir_color],branco
-	mov 	byte[arrow_color],amarelo
-	mov 	byte[fir1_color],branco
-	mov 	byte[fir2_color],branco
-	mov 	byte[fir3_color],branco
-	mov 	byte[negative_one_n_power_color], branco
-	mov 	byte[sair_color],branco
+		mov 	byte[abrir_color],branco
+		mov 	byte[arrow_color],amarelo
+		mov 	byte[fir1_color],branco
+		mov 	byte[fir2_color],branco
+		mov 	byte[fir3_color],branco
+		mov 	byte[negative_one_n_power_color], branco
+		mov 	byte[sair_color],branco
 
+	;;Erase old graph
+		mov 	al,preto
+		mov 	byte[cor],al
+		call	draw_original_function
 	;; Faco o que a opcao deve fazer
 	;...
 	;...
 	;...
-
+	;;pritns new graph
+		mov 	al,byte[original_function_color]
+		mov 	byte[cor],al
+		call	draw_original_function
 	;retorno pro loop do menu
-	jmp 	menu_loop
+		ret
 
 execute_fir1:
 	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
 	;Menos o botão que foi clicado
 
-	mov 	byte[abrir_color],branco
-	mov 	byte[arrow_color],branco
-	mov 	byte[fir1_color],amarelo
-	mov 	byte[fir2_color],branco
-	mov 	byte[fir3_color],branco
-	mov 	byte[negative_one_n_power_color], branco
-	mov 	byte[sair_color],branco
+		mov 	byte[abrir_color],branco
+		mov 	byte[arrow_color],branco
+		mov 	byte[fir1_color],amarelo
+		mov 	byte[fir2_color],branco
+		mov 	byte[fir3_color],branco
+		mov 	byte[negative_one_n_power_color], branco
+		mov 	byte[sair_color],branco
 
 	;; Faco o que a opcao deve fazer
 	;...
@@ -238,7 +268,7 @@ execute_fir1:
 	;...
 
 	;retorno pro loop do menu
-	jmp 	menu_loop
+	ret
 
 execute_fir2:
 	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
@@ -258,7 +288,7 @@ execute_fir2:
 	;...
 
 	;retorno pro loop do menu
-	jmp 	menu_loop
+	ret
 
 execute_fir3:
 	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
@@ -278,7 +308,7 @@ execute_fir3:
 	;...
 
 	;retorno pro loop do menu
-	jmp 	menu_loop
+	ret
 
 execute_negative_one_n_power:
 	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
@@ -298,7 +328,7 @@ execute_negative_one_n_power:
 	;...
 
 	;retorno pro loop do menu
-	jmp 	menu_loop
+	ret
 
 execute_sair:
 	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
@@ -319,7 +349,24 @@ execute_sair:
 
 ;Button Press Routines
 ;A referencia do mouse é no canto superior esquerdo, e a referência da biblioteca gráfica é no canto inferior
+;****************************IMPORANT****************************	
+;For some weird reason when using "call plot_xy" it was not working properly
+;Looking like it was changing the state of the pointer SP/BP and not retuning properly (program freezing)
+;When I tried pushing every register before the function call, and then poping on the function end
+;It worked, so it will stay this way (need to do ASAP)
+;****************************************************************
 button_press:
+		push 	bp
+		mov	 	bp,sp
+		pushf                        ;coloca os flags na pilha
+		push 	ax
+		push 	bx
+		push	cx
+		push	dx
+		push	si
+		push	di
+
+button_press_start:
 		cmp 	word[last_mouse_pos_click],127
 		jle 	button_abrir_press
 		jmp 	button_press_return
@@ -327,38 +374,52 @@ button_abrir_press:
 	;Clicou em "Abrir"
 		cmp 	word[last_mouse_pos_click+2],69
 		jg 		button_arrow_press
-		jmp 	execute_abrir
+		call 	execute_abrir
+		jmp 	button_press_return
 button_arrow_press:
 	;Clicou em "Arrow"
 		cmp 	word[last_mouse_pos_click+2],129
 		jg 		button_fir1_press
-		jmp 	execute_arrow
+		call 	execute_arrow
+		jmp 	button_press_return
 button_fir1_press:
 	;Clicou em "FIR1"
 		cmp 	word[last_mouse_pos_click+2],199
 		jg 		button_fir2_press
-		jmp 	execute_fir1
+		call 	execute_fir1
+		jmp 	button_press_return
 button_fir2_press:
 	;Clicou em "FIR2"
 		cmp 	word[last_mouse_pos_click+2],269
 		jg 		button_fir3_press
-		jmp 	execute_fir2
+		call 	execute_fir2
+		jmp 	button_press_return
 button_fir3_press:
 	;Clicou em "FIR3"
 		cmp 	word[last_mouse_pos_click+2],339
 		jg 		button_negative_one_n_power_press
-		jmp 	execute_fir3
+		call 	execute_fir3
+		jmp 	button_press_return
 button_negative_one_n_power_press:
 	;Clicou em "(-1)^n"
 		cmp 	word[last_mouse_pos_click+2],409
 		jg 		button_sair_press
-		jmp 	execute_negative_one_n_power
+		call 	execute_negative_one_n_power
+		jmp 	button_press_return
 button_sair_press:
 	;Clicou em "Sair"
 	;Não comparo pois sobrou apenas esse botão
 		jmp 	execute_sair
 
 button_press_return:
+		pop		di
+		pop		si
+		pop		dx
+		pop		cx
+		pop		bx
+		pop		ax
+		popf
+		pop		bp
 		ret
 		
 
@@ -920,9 +981,14 @@ quit:
 		; mov 		ax, 1
 		; int 		33h
 
-		mov ax,4c00h ; função de encerrar o programa caso "int 21h" seja chamado depois,
+		;;Debugando valores
+		mov		dx,[original_function_values+39]
+		call 	imprimenumero
+
+
+		mov 	ax,4c00h ; função de encerrar o programa caso "int 21h" seja chamado depois,
 		;o mesmo que fazer "mov ah 4ch", mas provavelmente "al" não é 0, por isso o uso de 2 bytes em "4c00h"
-		int 21h ; encerra o programa 
+		int 	21h ; encerra o programa 
 
 
 ;***************************************************************************
@@ -1459,28 +1525,77 @@ del1:
 	loop del2 ; No loop del2, cx é decrementado até que seja zero
 	ret
 
-open_filename:
-		mov 	dx,filename_with_values ;Filename
+;;Funcoes para facilitar abrir,ler e fechar arquivo
+open_file:
+		mov 	dx,file_values ;Filename
 		mov 	al,0 ; access mode, 0 = read, 1 = write, 2 = read/write
 		mov 	ah, 3dh ;int21h function number
 		int 	21h
 
-		mov		word[filename_handler],ax
+		mov		word[file_handler],ax
 
 		ret
 
-read_filename:
+read_file:
 	;File with no error means AX contains the file handler pointer
-		mov 	bx,word[filename_handler] ; passing the handler to BX
+		mov 	bx,word[file_handler] ; passing the handler to BX
 		mov 	cx,file_line_len ;numbers of byte to read
 		mov 	dx,file_line_buffer ;pointer to buffer
 
 		mov 	ah,3fh ;function 3fh
 		int		21h
 
-		add		word[filename_handler],file_line_len
+		add		word[file_bytes_read],file_line_len
 		ret
 
+close_file:
+	;;Carry set if failed to close
+	    mov ah, 3eh         ; Close file function
+		mov bx,word[file_handler]
+		int 21h
+
+		ret
+
+;; Funcoes para debugar
+bin2ascii_loop:
+    mov bp, sp ;bp aponta para SP, de maneira que conseguimos andar sob SP
+    mov di,[bp+4] ; acessamos a "saida" [bp+2] é o antigo valor de BP, e [bp] é o endereço de retorno para a função que chamou "bin2ascii_loop"
+
+    add di,cx
+    dec di ;
+
+    mov bx,10
+    xor dx,dx ;zerar o registrador para ter certeza que ambos os bytes são 0
+
+    div bx ; DIV de duas words (2 bytes), o resultado fica em AX e o resto fica em DX, como o Resto nesse caso ocupa 1 byte, logo acesso somente DL
+    add dl,'0'
+    mov [di],dl
+
+    loop bin2ascii_loop ; Decrementa de CX
+
+    ret
+
+imprimenumero:
+    ;;Aqui, você deve salvar o contexto
+
+    xor cx,cx ; "zero" CX
+    mov cx,tam_vector ; EQU é uma constante, é substituido pelo valor em tempo de compilação
+
+    mov ax,dx ;; Number on DX
+    mov di,saida
+
+    push di
+    push bp
+    call bin2ascii_loop
+
+    pop bp ;recupera antigo valor de "bp"
+    pop di ;recupera antigo valor de "di"
+
+    mov dx,saida
+    mov ah,9
+    int 21h
+    ;;recuperar o contexto
+    ret
 segment data
 
 cor						db		branco_intenso
@@ -1570,17 +1685,21 @@ cor						db		branco_intenso
 	initial_mouse_state 		resb 		496 ;Usei o programa de printar numero em ASCII pra ver antes
 
 ;Declarando variáveis necessárias para calcular os pontos do grafico
-	file_line_len							equ			17
-	file_line_buffer						resb		17
+	file_line_len							equ			18
+	file_line_buffer						resb		18
 	file_max_line_read						equ			485
-
-	filename_handler						resw		1
-	filename_with_values					db 			'C:sinalep.txt',0
+	file_handler							resw		1
+	file_bytes_read							resw		1
+	file_values								db 			'C:sinalep.txt',0
 
 	original_function_values 				resb 		485
 	original_function_values_truncated 		resb 		485
-	original_functions_values_len			dw			0
+	original_function_values_len			dw			0
 	original_function_color					db			amarelo
+
+;Declarando pra debugar 
+    saida: db '00000',13,10,'$'
+    tam_vector equ 5h
 
 ;*************************************************************************
 segment stack stack

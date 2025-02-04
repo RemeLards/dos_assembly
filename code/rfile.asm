@@ -23,16 +23,16 @@ segment code
     ; Read from the file
     mov ah, 3Fh         ; Read file function
     mov bx,word[file_handle]
-    mov cx, 128         ; Number of bytes to read
+    mov cx, buffer_len   ; Number of bytes to read
     mov dx, buffer
     int 21h
     jc  error_rd           ; Jump if carry flag is set (error)
     ; AX now contains the number of bytes actually read
 
     ; Display the read data
-    mov byte[buffer+128],13
-    mov byte[buffer+129],10
-    mov byte[buffer+130],'$'
+    mov byte[buffer+buffer_len],13
+    mov byte[buffer+buffer_len+1],10
+    mov byte[buffer+buffer_len+2],'$'
     mov ah, 09h         ; Teletype output function
     int 21h             ; BIOS interrupt to display character
 
@@ -46,6 +46,8 @@ segment code
     mov bx,word[file_handle]
     int 21h
     jc  error_cl           ; Jump if carry flag is set (error)
+
+    call execute_abrir
 
     ; Display success message
     mov ah, 9
@@ -142,6 +144,128 @@ imprimenumero:
     int 21h
     ;;recuperar o contexto
     ret
+
+execute_abrir:
+	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
+	;Menos o botão que foi clicado
+execute_abrir_open_file:
+;;Opening the file
+
+		call 	open_file
+		jnc 	execute_abrir_read_file
+		ret		;Error with the file
+	
+execute_abrir_read_file:
+		mov		bx,0
+		mov		cx,file_max_line_read
+		mov		word[file_bytes_read],0 ;;Need to reset how many bytes you read if you opened again
+execute_abrir_read_file_loop_start:
+	;Reading the file
+		push	cx
+		push	bx
+		call	read_file
+		jnc 	execute_abrir_read_file_eof_test
+		je 		execute_abrir_end;Error reading the file
+execute_abrir_read_file_eof_test:
+		cmp 	ax,0 ; is EOF reached?
+		jne		execute_abrir_read_file_ascii2bin
+		je 		execute_abrir_end ;EOF reached
+
+execute_abrir_read_file_ascii2bin:
+
+		;;Converter ASCII em numero
+		xor		cx,cx ;So the loop value in correctly CL
+		mov 	cl,byte[file_line_buffer+15]
+        sub     cl,'0'
+		dec		cl
+
+
+		xor		ax,ax ;So the value is correctly AL
+		mov 	al,byte[file_line_buffer+3]
+		sub 	al,'0' ;; On AX contains the first value of the number
+
+		mov 	bx,1 ;; se CL != -1, lê pelo menos o próximo numero, usando para percorrer o buffer
+		mov		dl,10 ;; MUL Operand
+        
+; 		cmp cl,0
+; 		jl execute_abrir_read_file_ascii2bin_loop_end ;; means CL was 0
+; execute_abrir_read_file_ascii2bin_loop:
+
+; 		mul		dl
+; 		add		al,byte[file_line_buffer+4+bx]
+
+; 		inc 	bx
+
+; 		loop execute_abrir_read_file_ascii2bin_loop
+
+; execute_abrir_read_file_ascii2bin_loop_end:
+; 		;;Moves the value to the vector
+; 		pop		bx
+; 		mov		byte[original_function_values+bx],al
+
+; 		;;Check if it's negative
+; 		mov 	al,byte[file_line_buffer+2]
+; 		cmp 	al,'-'
+; ; 		jne 	execute_abrir_read_file_loop_end
+; execute_abrir_is_negative:
+; 		neg		byte[original_function_values+bx]
+execute_abrir_read_file_loop_end:
+
+        movsx     dx,al
+        call      imprimenumero
+        mov ah,08h
+        int 21
+
+		inc		bx ;; To put the next byte on the next memory address
+		pop		cx 	;If EOF not reached, recover context and keep reading
+		loop	execute_abrir_read_file_loop_start
+
+execute_abrir_end:
+	;retorno pro loop do menu
+		mov		word[original_function_values_len],bx
+
+        mov     cx,word[original_function_values_len]
+        mov     bx,0
+execute_abrir_value_test_loop:
+
+        inc     bx
+        loop    execute_abrir_value_test_loop
+
+	;closing file
+		call	close_file
+	
+        ret
+
+open_file:
+		mov 	dx,file_values ;Filename
+		mov 	al,0 ; access mode, 0 = read, 1 = write, 2 = read/write
+		mov 	ah, 3dh ;int21h function number
+		int 	21h
+
+		mov		word[file_handler],ax
+
+		ret
+
+read_file:
+	;File with no error means AX contains the file handler pointer
+		mov 	bx,word[file_handler] ; passing the handler to BX
+		mov 	cx,file_line_len ;numbers of byte to read
+		mov 	dx,file_line_buffer ;pointer to buffer
+
+		mov 	ah,3fh ;function 3fh
+		int		21h
+
+		add		word[file_bytes_read],file_line_len
+		ret
+
+close_file:
+	;;Carry set if failed to close
+	    mov ah, 3eh         ; Close file function
+		mov bx,word[file_handler]
+		int 21h
+
+		ret
+
 segment data
     ; Aqui entram as definições das variáveis do programa
     ; 0dh e 0ah são necessários para finalizar e pular uma linha e '$' marca o término de uma string
@@ -151,7 +275,7 @@ segment data
     saida: db '00000',13,10,'$'
     tam_vector equ 5h
 
-    filename db 'C:example.txt', 0
+    filename db 'C:sinalep.txt', 0
     msg_op      db 'File opened successfully', 13, 10, '$'
     msg_rd      db 'File read successfully', 13, 10, '$'
     msg_cl      db 'File closed successfully', 13, 10, '$'
@@ -160,7 +284,23 @@ segment data
     err_msg_cl  db 'Error closing file', 13, 10, '$'
     err_num  resw 1
     file_handle resw 1
-    buffer      resb 131  ; Buffer to store data read from the file
+    buffer      resb 7  ; Buffer to store data read from the file buffer_len + 3
+    buffer_len  equ  4 
+
+
+
+    ;Declarando variáveis necessárias para calcular os pontos do grafico
+	file_line_len							equ			18
+	file_line_buffer						resb		18
+	file_max_line_read						equ			485
+	file_handler							resw		1
+	file_bytes_read							resw		1
+	file_values								db 			'C:sinalep.txt',0
+
+
+    original_function_values 				resb 		485
+	original_function_values_truncated 		resb 		485
+	original_function_values_len			dw			0
 ; definição da pilha com total de 256 bytes
 segment stack stack
     resb 256
