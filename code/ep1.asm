@@ -402,11 +402,28 @@ execute_negative_one_n_power:
 	mov 	byte[negative_one_n_power_color], amarelo
 	mov 	byte[sair_color],branco
 
-	;; Faco o que a opcao deve fazer
-	;...
-	;...
-	;...
+	cmp		word[original_function_values_len],0
+	je		execute_negative_one_n_power_ret
+execute_negative_one_n_power_convolution_values:
+	mov		cx,word[original_function_values_len]
+	mov		bx,word[one_n_power_sample_number]
 
+execute_negative_one_n_power_convolution_values_loop:
+
+	mov		ax,word[original_function_values+bx]
+	mov		word[convoluted_function_values+bx],ax
+
+	test	bx,1 ; Test if the LSB is 0 or 1
+	jz		execute_negative_one_n_power_convolution_values_loop_tail
+execute_negative_one_n_power_convolution_values_loop_negate:
+	neg		word[convoluted_function_values+bx]
+execute_negative_one_n_power_convolution_values_loop_tail:
+	inc		bx
+	loop	execute_negative_one_n_power_convolution_values_loop
+
+	mov		word[one_n_power_sample_number],bx
+
+execute_negative_one_n_power_ret:
 	;retorno pro loop do menu
 	ret
 
@@ -1769,6 +1786,10 @@ cor						db		branco_intenso
 	convoluted_function_values_truncated 	resb 		485
 	convoluted_function_values_len			dw			0
 	convoluted_function_color				db			amarelo
+
+;Variables for the filters
+
+one_n_power_sample_number		dw		0;
 
 ;Declarando pra debugar 
     saida: db '00000',13,10,'$'
