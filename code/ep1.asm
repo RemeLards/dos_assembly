@@ -93,7 +93,7 @@ execute_convolution_function_fir2:
 execute_convolution_function_fir3:
 	cmp 	word[convolution_function_option],3
 	jne 	execute_convolution_function_negative_one_n_power
-	; call	convolute_fir3
+	call	convolute_fir3
 	jmp 	execute_convolution_function_ret
 
 execute_convolution_function_negative_one_n_power:
@@ -103,6 +103,69 @@ execute_convolution_function_negative_one_n_power:
 	jmp 	execute_convolution_function_ret
 
 execute_convolution_function_ret:
+	ret
+
+convolute_fir3:
+	push	bp
+	mov		bp,sp
+convolute_fir3_values:
+	mov		cx,word[original_function_values_len]
+	mov		bx,0
+convolute_fir3_values_loop:
+	push	cx
+	push	bx
+convolute_fir3_values_calculate_window_values:
+	movsx	cx,byte[reflected_fir3_function_len]
+
+	mov		si,original_function_values ; Gonna compare pointer values
+	add		si,[bp-4] ;Makes the pointer walk
+
+	xor		ax,ax	  ;Makes AX = 0
+	xor		dx,dx	  ;Makes DX = 0
+	xor		bx,bx	  ;Makes BX = 0
+convolute_fir3_values_calculate_window_values_loop:
+convolute_fir3_values_calculate_window_values_loop_check_si_going_beyond:
+
+	mov		di,original_function_values
+	add		di,word[original_function_values_len]
+	dec		di ; makes DI point to the last "original_function_values" memory address
+
+	cmp		si,di
+	jg		convolute_fir3_values_calculate_window_values_loop_end
+
+convolute_fir3_values_calculate_window_values_loop_mid:
+	mov 	al,byte[si]
+	imul	byte[reflected_fir3_function+bx]
+
+	add		dl,al
+
+convolute_fir3_values_calculate_window_values_loop_end:
+
+	; cmp		word[bp-4],1
+	; je		convolute_debug
+	inc		bx
+	dec		si
+
+	cmp		si,original_function_values
+	jl		convolute_fir3_values_loop_end ; Pointer points to the memory address behind "original_function_values"
+	
+	loop 	convolute_fir3_values_calculate_window_values_loop
+
+convolute_fir3_values_loop_end:
+	pop		bx
+	pop		cx
+
+	mov		byte[convoluted_function_values+bx],dl
+	inc		bx
+
+	loop	convolute_fir3_values_loop
+
+	mov		word[convoluted_function_values_len],bx
+
+; convolute_debug:
+; 	jmp quit
+convolute_fir3_ret:
+	pop		bp
 	ret
 
 convolute_negative_one_n_power:
@@ -220,7 +283,6 @@ draw_convoluted_function_truncate_values_loop:
 
 ;Drawing a line to test it
 		mov		cx,word[convoluted_function_values_len]
-		; mov		cx,70
 		mov		bx,0
 
 ;****************************IMPORANT****************************	
@@ -462,11 +524,20 @@ execute_fir3:
 	mov 	byte[negative_one_n_power_color], branco
 	mov 	byte[sair_color],branco
 
-	;; Faco o que a opcao deve fazer
-	;...
-	;...
-	;...
 
+	mov		word[convolution_function_option],3;Choses convolution option
+	cmp		word[original_function_values_len],0
+	jne		execute_fir3_convolution
+
+	mov		word[convolution_function_option],0
+	jmp 	execute_fir3_ret
+execute_fir3_convolution:
+	call	execute_convolution_function
+	mov 	al,byte[original_function_color]
+	mov 	byte[cor],al
+	call	draw_convoluted_function
+
+execute_fir3_ret:
 	;retorno pro loop do menu
 	ret
 
@@ -1137,15 +1208,15 @@ quit:
 		; mostrar o cursor na tela
 		; mov 		ax, 1
 		; int 		33h
-		mov		dx,word[original_function_values_len]
+		mov		dx,cx
 		call	imprimenumero
 
-		mov		dx,word[original_function_ammount_num_read]
+		mov		dx,original_function_values
 		call	imprimenumero
 
-		mov		bx,word[original_function_values_len]
-		dec		bx
-		movsx	dx,byte[original_function_values+bx]
+		; mov		bx,word[original_function_values_len]
+		; dec		bx
+		movsx	dx,byte[convoluted_function_values+2]
 		call	imprimenumero
 
 		;;Debugando valores
@@ -1861,7 +1932,7 @@ cor						db		branco_intenso
 	original_function_values_truncated 		resb 		485
 	original_function_values_len			dw			0
 	original_function_color					db			amarelo
-	original_function_ammount_num_read	dw			0
+	original_function_ammount_num_read		dw			0
 
 	convoluted_function_values 				resb 		485
 	convoluted_function_values_truncated 	resb 		485
@@ -1871,8 +1942,9 @@ cor						db		branco_intenso
 ;Variables for the filters
 
 ;Option = 0 (None), Option = 1 (FIR1), Option = 2 (FIR2), Option = 3 (FIR3), Option = 4 ((-1)^n)
-	convolution_function_option				dw		0
-
+	convolution_function_option		dw		0
+	reflected_fir3_function			db		1,-1
+	reflected_fir3_function_len		db		2				
 
 ;Declarando pra debugar 
     saida: db '00000',13,10,'$'
