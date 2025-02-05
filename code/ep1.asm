@@ -418,7 +418,6 @@ execute_abrir_get_initial_function_values:
 		mov 	byte[cor],al
 		call	draw_original_function
 
-		
 execute_abrir_ret:
 		ret
 
@@ -1233,7 +1232,7 @@ quit:
 		; mov 		ax, 1
 		; int 		33h
 
-		;;Debugando valores
+		;DEBUGAR
 		; mov		dx,cx
 		; call	imprimenumero
 
@@ -1245,7 +1244,11 @@ quit:
 		; movsx	dx,byte[convoluted_function_values+2]
 		; call	imprimenumero
 
-
+		cmp		byte[file_open_flag],0
+		je		quit_end
+quit_close_file:
+		call	close_file
+quit_end:
 		mov 	ax,4c00h ; função de encerrar o programa caso "int 21h" seja chamado depois,
 		;o mesmo que fazer "mov ah 4ch", mas provavelmente "al" não é 0, por isso o uso de 2 bytes em "4c00h"
 		int 	21h ; encerra o programa 
