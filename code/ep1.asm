@@ -524,7 +524,19 @@ execute_fir3:
 	mov 	byte[negative_one_n_power_color], branco
 	mov 	byte[sair_color],branco
 
+execute_fir3_check_function_value:
+	cmp		word[convolution_function_option],0
+	je		execute_fir3_start
+	cmp		word[convolution_function_option],3
+	je		execute_fir3_start
 
+	;Clears old graph from another convulution option
+	mov 	al,preto
+	mov 	byte[cor],al
+	call	draw_convoluted_function
+
+
+execute_fir3_start:
 	mov		word[convolution_function_option],3;Choses convolution option
 	cmp		word[original_function_values_len],0
 	jne		execute_fir3_convolution
@@ -553,6 +565,18 @@ execute_negative_one_n_power:
 	mov 	byte[negative_one_n_power_color], amarelo
 	mov 	byte[sair_color],branco
 
+execute_negative_one_n_power_check_function_value:
+	cmp		word[convolution_function_option],0
+	je		execute_negative_one_n_power_start
+	cmp		word[convolution_function_option],4
+	je		execute_negative_one_n_power_start
+
+	;Clears old graph from another convulution option
+	mov 	al,preto
+	mov 	byte[cor],al
+	call	draw_convoluted_function
+
+execute_negative_one_n_power_start:
 	mov		word[convolution_function_option],4 ;Choses convolution option
 	cmp		word[original_function_values_len],0
 	jne		execute_negative_one_n_power_convolution
@@ -1208,18 +1232,19 @@ quit:
 		; mostrar o cursor na tela
 		; mov 		ax, 1
 		; int 		33h
-		mov		dx,cx
-		call	imprimenumero
-
-		mov		dx,original_function_values
-		call	imprimenumero
-
-		; mov		bx,word[original_function_values_len]
-		; dec		bx
-		movsx	dx,byte[convoluted_function_values+2]
-		call	imprimenumero
 
 		;;Debugando valores
+		; mov		dx,cx
+		; call	imprimenumero
+
+		; mov		dx,original_function_values
+		; call	imprimenumero
+
+		; ; mov		bx,word[original_function_values_len]
+		; ; dec		bx
+		; movsx	dx,byte[convoluted_function_values+2]
+		; call	imprimenumero
+
 
 		mov 	ax,4c00h ; função de encerrar o programa caso "int 21h" seja chamado depois,
 		;o mesmo que fazer "mov ah 4ch", mas provavelmente "al" não é 0, por isso o uso de 2 bytes em "4c00h"
