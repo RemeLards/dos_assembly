@@ -138,13 +138,52 @@ convolute_fir3_values_calculate_window_values_loop_mid:
 	imul	byte[reflected_fir3_function+bx]
 
 	add		dl,al
+	cmp		word[fir3_original_function_old_values_len],0
+	jg		convolute_fir3_values_calculate_window_values_convolute_old_values
+	jmp		convolute_fir3_values_calculate_window_values_loop_end
+convolute_fir3_values_calculate_window_values_convolute_old_values:
+	push	cx
+	push	bx
+	mov		cx,word[fir3_original_function_old_values_len]
+convolute_fir3_values_calculate_window_values_convolute_old_values_loop:
+	mov 	al,byte[fir3_original_function_old_values+bx]
+	imul	byte[reflected_fir3_function+bx]
+
+	add		dl,al
+	cmp		word[fir3_original_function_old_values_len],0
+	dec		[bp-6]
+	loop	convolute_fir3_values_calculate_window_values_convolute_old_values_loop
+	pop		bx
+	pop		cx
 
 convolute_fir3_values_calculate_window_values_loop_end:
 
 	; cmp		word[bp-4],1
 	; je		convolute_debug
 	inc		bx
+	push	bx
+
+	push	[si]
+	push	fir3_original_function_old_values ;Vector Address
+	push 	word[fir3_original_function_old_values_len] ;Len
+	call 	push_vector
+	pop		bx
+	pop		bx
+	pop		bx
+
+
+	movsx	bx,byte[reflected_fir3_function_len]
+	dec		bx
+	cmp		word[fir3_original_function_old_values_len],bx
+	jge		convolute_fir3_values_calculate_window_values_loop_end_setup
+
+	inc		word[fir3_original_function_old_values_len]
+
+convolute_fir3_values_calculate_window_values_loop_end_setup:
+	pop		bx
+
 	dec		si
+
 
 	cmp		si,original_function_values
 	jl		convolute_fir3_values_loop_end ; Pointer points to the memory address behind "original_function_values"
@@ -1860,6 +1899,44 @@ imprimenumero:
     int 21h
     ;;recuperar o contexto
     ret
+
+;; Args = vector length, last item
+;; POP after call is needed since one of the itens is a byte
+push_vector:
+	push 	bp
+	mov		bp,sp
+	push	si
+	push	di
+
+	mov		cx,word[bp+4]
+	dec		cx
+	mov		bx,0
+
+	cmp		cx,0
+	je		push_vector_ret
+
+push_vector_loop:
+
+	mov		si,word ptr[bp+2]	;V[i]
+	add		si,bx
+
+	mov		di,word ptr[bp+2]	;V[i+1]
+	add		di,bx
+	inc		di
+
+	mov		[di],[si]
+
+	inc		bx
+	loop	push_vector_loop
+
+	mov		word ptr[bp+2],[bp+6]
+
+push_vector_ret:
+	pop		di
+	pop		si
+	pop		bp
+	ret	
+
 segment data
 
 cor						db		branco_intenso
@@ -1970,9 +2047,11 @@ cor						db		branco_intenso
 ;Variables for the filters
 
 ;Option = 0 (None), Option = 1 (FIR1), Option = 2 (FIR2), Option = 3 (FIR3), Option = 4 ((-1)^n)
-	convolution_function_option		dw		0
-	reflected_fir3_function			db		1,-1
-	reflected_fir3_function_len		db		2				
+	convolution_function_option				dw		0
+	reflected_fir3_function					db		1,-1
+	reflected_fir3_function_len				db		2	
+	fir3_original_function_old_values 		resb	1
+	fir3_original_function_old_values_len	dw		0
 
 ;Declarando pra debugar 
     saida: db '00000',13,10,'$'
