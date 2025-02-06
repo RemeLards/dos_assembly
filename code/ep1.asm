@@ -87,7 +87,7 @@ execute_convolution_function_fir1:
 execute_convolution_function_fir2:
 	cmp 	word[convolution_function_option],2
 	jne		execute_convolution_function_fir3
-	; call	convolute_fir2
+	call	convolute_fir2
 	jmp 	execute_convolution_function_ret
 
 execute_convolution_function_fir3:
@@ -105,6 +105,83 @@ execute_convolution_function_negative_one_n_power:
 execute_convolution_function_ret:
 	ret
 
+convolute_fir2:
+	push	bp
+	mov		bp,sp
+convolute_fir2_values:
+	mov		cx,word[original_function_values_len]
+	mov		bx,0
+convolute_fir2_values_loop:
+	push	cx
+	push	bx
+convolute_fir2_values_calculate_window_values:
+	mov		si,original_function_values ; Gonna compare pointer values
+	add		si,[bp-4] ;Points to original_function_values[bx]
+
+	xor		ax,ax	  ;Makes AX = 0
+	xor		dx,dx	  ;Makes DX = 0
+	mov		bx,0	  ;Makes BX = 0
+convolute_fir2_values_calculate_window_first_value:
+	mov 	al,byte[si]
+	imul	byte[reflected_fir2_function+bx]
+
+	push	dx
+	mov		dl,byte[reflected_fir2_function_divisor]
+	idiv	dl ;Divide only by the Lower part of the extended byte
+	pop		dx
+
+	add		dl,al
+	cmp		word[original_function_old_values_len],0 ;If there are saved values
+	jg		convolute_fir2_values_calculate_window_old_values
+	jmp		convolute_fir2_values_calculate_window_values_loop_end ;If there aren't saved values
+convolute_fir2_values_calculate_window_old_values:
+	mov		cx,word[original_function_old_values_len]
+convolute_fir2_values_calculate_window_old_values_loop:
+	mov		ah,0
+	mov 	al,byte[original_function_old_values+bx] ;Points to original_function_old_values[bx]
+	inc		bx
+	imul	byte[reflected_fir2_function+bx] ;Points to reflected_fir3_function[bx+1] because the first index was used before already
+
+	; push	dx
+	; mov		dl,byte[reflected_fir2_function_divisor]
+	; idiv	dl ;Divide only by the Lower part of the extended byte
+	; pop		dx
+	sar		al,4
+	add		dl,al
+
+	loop	convolute_fir2_values_calculate_window_old_values_loop
+
+convolute_fir2_values_calculate_window_values_loop_end:
+
+	call shift_byte_vector_original_function_old_values_right
+
+	xor		bx,bx
+	mov		bl,byte[si]
+	mov		byte[original_function_old_values],bl
+
+
+	movsx	bx,byte[reflected_fir2_function_len]	;Dont let the "original_function_old_values_len" grow more than "reflected_fir3_function_len-1"
+	dec		bx
+	cmp		word[original_function_old_values_len],bx
+	jge		convolute_fir2_values_loop_end
+	inc		word[original_function_old_values_len]
+
+convolute_fir2_values_loop_end:
+	;Recover context from Outer Loop
+	pop		bx
+	pop		cx
+
+	mov		byte[convoluted_function_values+bx],dl
+	inc		bx
+
+	loop	convolute_fir2_values_loop
+
+	mov		word[convoluted_function_values_len],bx
+
+convolute_fir2_ret:
+	pop		bp
+	ret
+
 convolute_fir3:
 	push	bp
 	mov		bp,sp
@@ -115,82 +192,50 @@ convolute_fir3_values_loop:
 	push	cx
 	push	bx
 convolute_fir3_values_calculate_window_values:
-	movsx	cx,byte[reflected_fir3_function_len]
-
 	mov		si,original_function_values ; Gonna compare pointer values
-	add		si,[bp-4] ;Makes the pointer walk
+	add		si,[bp-4] ;Points to original_function_values[bx]
 
 	xor		ax,ax	  ;Makes AX = 0
 	xor		dx,dx	  ;Makes DX = 0
-	xor		bx,bx	  ;Makes BX = 0
-convolute_fir3_values_calculate_window_values_loop:
-convolute_fir3_values_calculate_window_values_loop_check_si_going_beyond:
-
-	mov		di,original_function_values
-	add		di,word[original_function_values_len]
-	dec		di ; makes DI point to the last "original_function_values" memory address
-
-	cmp		si,di
-	jg		convolute_fir3_values_calculate_window_values_loop_end
-
-convolute_fir3_values_calculate_window_values_loop_mid:
+	mov		bx,0	  ;Makes BX = 0
+convolute_fir3_values_calculate_window_first_value:
 	mov 	al,byte[si]
 	imul	byte[reflected_fir3_function+bx]
 
 	add		dl,al
-	cmp		word[fir3_original_function_old_values_len],0
-	jg		convolute_fir3_values_calculate_window_values_convolute_old_values
-	jmp		convolute_fir3_values_calculate_window_values_loop_end
-convolute_fir3_values_calculate_window_values_convolute_old_values:
-	push	cx
-	push	bx
-	mov		cx,word[fir3_original_function_old_values_len]
-convolute_fir3_values_calculate_window_values_convolute_old_values_loop:
-	mov 	al,byte[fir3_original_function_old_values+bx]
-	imul	byte[reflected_fir3_function+bx]
+	cmp		word[original_function_old_values_len],0 ;If there are saved values
+	jg		convolute_fir3_values_calculate_window_old_values
+	jmp		convolute_fir3_values_calculate_window_values_loop_end ;If there aren't saved values
+convolute_fir3_values_calculate_window_old_values:
+	mov		cx,word[original_function_old_values_len]
+convolute_fir3_values_calculate_window_old_values_loop:
+	
+	mov 	al,byte[original_function_old_values+bx] ;Points to original_function_old_values[bx]
+	inc		bx
+	imul	byte[reflected_fir3_function+bx] ;Points to reflected_fir3_function[bx+1] because the first index was used before already
 
 	add		dl,al
-	cmp		word[fir3_original_function_old_values_len],0
-	dec		[bp-6]
-	loop	convolute_fir3_values_calculate_window_values_convolute_old_values_loop
-	pop		bx
-	pop		cx
+
+	loop	convolute_fir3_values_calculate_window_old_values_loop
 
 convolute_fir3_values_calculate_window_values_loop_end:
 
-	; cmp		word[bp-4],1
-	; je		convolute_debug
-	inc		bx
-	push	bx
+	call 	shift_byte_vector_original_function_old_values_right
+	;Poping Manually since ret 4 didnt worked (????)
 
-	push	[si]
-	push	fir3_original_function_old_values ;Vector Address
-	push 	word[fir3_original_function_old_values_len] ;Len
-	call 	push_vector
-	pop		bx
-	pop		bx
-	pop		bx
+	xor		bx,bx
+	mov		bl,byte[si]
+	mov		byte[original_function_old_values],bl
 
 
-	movsx	bx,byte[reflected_fir3_function_len]
+	movsx	bx,byte[reflected_fir3_function_len]	;Dont let the "original_function_old_values_len" grow more than "reflected_fir3_function_len-1"
 	dec		bx
-	cmp		word[fir3_original_function_old_values_len],bx
-	jge		convolute_fir3_values_calculate_window_values_loop_end_setup
-
-	inc		word[fir3_original_function_old_values_len]
-
-convolute_fir3_values_calculate_window_values_loop_end_setup:
-	pop		bx
-
-	dec		si
-
-
-	cmp		si,original_function_values
-	jl		convolute_fir3_values_loop_end ; Pointer points to the memory address behind "original_function_values"
-	
-	loop 	convolute_fir3_values_calculate_window_values_loop
+	cmp		word[original_function_old_values_len],bx
+	jge		convolute_fir3_values_loop_end
+	inc		word[original_function_old_values_len]
 
 convolute_fir3_values_loop_end:
+	;Recover context from Outer Loop
 	pop		bx
 	pop		cx
 
@@ -201,8 +246,6 @@ convolute_fir3_values_loop_end:
 
 	mov		word[convoluted_function_values_len],bx
 
-; convolute_debug:
-; 	jmp quit
 convolute_fir3_ret:
 	pop		bp
 	ret
@@ -443,6 +486,8 @@ execute_abrir_draw_after_closing_existing_file:
 		call	draw_graph_borders
 
 		mov		word[convolution_function_option],0
+		mov		word[convoluted_function_values_len],0
+		mov		word[original_function_old_values_len],0 ;Means any value there would be "forgotten"
 		jc		execute_abrir_ret
 execute_abrir_can_open_file:		
 ;;Opening the file
@@ -542,12 +587,42 @@ execute_fir2:
 	mov 	byte[negative_one_n_power_color], branco
 	mov 	byte[sair_color],branco
 
-	;; Faco o que a opcao deve fazer
-	;...
-	;...
-	;...
 
-	;retorno pro loop do menu
+execute_fir2_check_function_value:
+	cmp		word[convolution_function_option],0
+	je		execute_fir2_start
+	cmp		word[convolution_function_option],2
+	je		execute_fir2_start
+
+	;Clears old graph from another convulution option
+
+	call	draw_graph_borders
+	mov 	al,preto
+	mov 	byte[cor],al
+	call	draw_convoluted_function
+	mov 	al,byte[original_function_color]
+	mov 	byte[cor],al
+	call	draw_original_function
+
+	mov		word[convolution_function_option],0
+	mov		word[convoluted_function_values_len],0
+	mov		word[original_function_old_values_len],0
+
+execute_fir2_start:
+	mov		word[convolution_function_option],2;Choses convolution option
+	cmp		word[original_function_values_len],0
+	jne		execute_fir2_convolution
+
+	mov		word[convolution_function_option],0
+	jmp 	execute_fir2_ret
+execute_fir2_convolution:
+	call	execute_convolution_function
+	mov 	al,byte[original_function_color]
+	mov 	byte[cor],al
+	call	draw_convoluted_function
+
+execute_fir2_ret:
+;	retorno pro loop do menu
 	ret
 
 execute_fir3:
@@ -569,9 +644,17 @@ execute_fir3_check_function_value:
 	je		execute_fir3_start
 
 	;Clears old graph from another convulution option
+	call	draw_graph_borders
 	mov 	al,preto
 	mov 	byte[cor],al
 	call	draw_convoluted_function
+	mov 	al,byte[original_function_color]
+	mov 	byte[cor],al
+	call	draw_original_function
+
+	mov		word[convolution_function_option],0
+	mov		word[convoluted_function_values_len],0
+	mov		word[original_function_old_values_len],0
 
 
 execute_fir3_start:
@@ -613,6 +696,7 @@ execute_negative_one_n_power_check_function_value:
 	mov 	al,preto
 	mov 	byte[cor],al
 	call	draw_convoluted_function
+	mov		word[original_function_old_values_len],0
 
 execute_negative_one_n_power_start:
 	mov		word[convolution_function_option],4 ;Choses convolution option
@@ -1271,9 +1355,9 @@ quit:
 		; mov 		ax, 1
 		; int 		33h
 
-		;DEBUGAR
-		; mov		dx,cx
-		; call	imprimenumero
+		DEBUGAR
+		mov		dx,word[original_function_old_values_len]
+		call	imprimenumero
 
 		; mov		dx,original_function_values
 		; call	imprimenumero
@@ -1902,40 +1986,46 @@ imprimenumero:
 
 ;; Args = vector length, last item
 ;; POP after call is needed since one of the itens is a byte
-push_vector:
+shift_byte_vector_original_function_old_values_right:
 	push 	bp
 	mov		bp,sp
 	push	si
 	push	di
+	push	cx
+	push	bx
+	push	dx
 
-	mov		cx,word[bp+4]
+	mov		cx,word[original_function_old_values_len]; Gets Vector Length
 	dec		cx
-	mov		bx,0
+	xor		bx,bx
+	xor		dx,dx	
 
 	cmp		cx,0
-	je		push_vector_ret
+	jle		shift_byte_vector_original_function_old_values_right_ret
 
-push_vector_loop:
+shift_byte_vector_original_function_old_values_right_loop:
 
-	mov		si,word ptr[bp+2]	;V[i]
+	mov		si,original_function_old_values	;V[i]
 	add		si,bx
 
-	mov		di,word ptr[bp+2]	;V[i+1]
+	mov		di,original_function_old_values	;V[i+1]
 	add		di,bx
 	inc		di
 
-	mov		[di],[si]
+	mov		dl,byte[si]
+	mov		byte[di],dl
 
 	inc		bx
-	loop	push_vector_loop
+	loop	shift_byte_vector_original_function_old_values_right_loop
 
-	mov		word ptr[bp+2],[bp+6]
-
-push_vector_ret:
+shift_byte_vector_original_function_old_values_right_ret:
+	pop		dx
+	pop		bx
+	pop		cx
 	pop		di
 	pop		si
 	pop		bp
-	ret	
+	ret		
 
 segment data
 
@@ -2049,9 +2139,14 @@ cor						db		branco_intenso
 ;Option = 0 (None), Option = 1 (FIR1), Option = 2 (FIR2), Option = 3 (FIR3), Option = 4 ((-1)^n)
 	convolution_function_option				dw		0
 	reflected_fir3_function					db		1,-1
-	reflected_fir3_function_len				db		2	
-	fir3_original_function_old_values 		resb	1
-	fir3_original_function_old_values_len	dw		0
+	reflected_fir3_function_len				db		2
+
+	reflected_fir2_function					db		1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	reflected_fir2_function_len				db		15
+	reflected_fir2_function_divisor			db		15
+
+	original_function_old_values 		resb	14 ; So it's usable for FIR1/FIR2/FIR3
+	original_function_old_values_len	dw		0
 
 ;Declarando pra debugar 
     saida: db '00000',13,10,'$'
