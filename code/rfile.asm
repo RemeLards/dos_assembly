@@ -47,12 +47,24 @@ segment code
     int 21h
     jc  error_cl           ; Jump if carry flag is set (error)
 
-    call execute_abrir
-
     ; Display success message
     mov ah, 9
     mov dx, msg_cl
-    int 21h
+    int 21
+
+    call    open_file
+    mov     byte[file_open_flag],1
+    xor     cx,cx
+    mov     cx,11
+read_loop_test:
+    call    get_function_values
+    loop    read_loop_test
+
+    call    close_file
+
+
+    mov     dx,word[original_function_ammount_num_read]
+    call    imprimenumero
 
     ; Exit program
     mov ax, 4C00h
@@ -145,31 +157,30 @@ imprimenumero:
     ;;recuperar o contexto
     ret
 
-execute_abrir:
-execute_abrir_open_file:
-;;Opening the file
-
-		call 	open_file
-		jnc 	execute_abrir_read_file
-		ret		;Error with the file
-execute_abrir_read_file:
+get_function_values:
+        push    cx
+		cmp		byte[file_open_flag],0
+		je		get_function_values_ret
+get_function_values_read_file:
 		mov		bx,0
         mov     cx,file_max_line_read
-execute_abrir_read_file_loop_start:
+get_function_values_read_file_loop_start:
 	;Reading the file
         push    cx
 		push	bx
 		call	read_file
-		jnc 	execute_abrir_read_file_eof_test
-		je 		execute_abrir_end;Error reading the file
-execute_abrir_read_file_eof_test:
-		cmp 	ax,0 ; is EOF reached?
-		jne		execute_abrir_read_file_ascii2bin
+        cmp 	ax,0 ; is EOF reached?
+		je  	get_function_values_read_file_eof;Error reading the file
+		jmp		get_function_values_read_file_ascii2bin
+get_function_values_read_file_eof:
         pop     bx
         pop     cx
-		je 		execute_abrir_end ;EOF reached
 
-execute_abrir_read_file_ascii2bin:
+		call	close_file
+		mov		byte[file_open_flag],0
+		je 		get_function_values_end ;EOF reached
+
+get_function_values_read_file_ascii2bin:
 
 		;;Converter ASCII em numero
 		xor		cx,cx ;So the loop value in correctly CL
@@ -184,16 +195,16 @@ execute_abrir_read_file_ascii2bin:
 		mov		dl,10 ;; MUL Operand
 
 		cmp cl,0
-		je execute_abrir_read_file_ascii2bin_loop_end ;; means CL was 0
-execute_abrir_read_file_ascii2bin_loop:
+		je get_function_values_read_file_ascii2bin_loop_end ;; means CL was 0
+get_function_values_read_file_ascii2bin_loop:
 
 		mul		dl
 		add		al,byte[file_line_buffer+5+bx]
         sub     al,'0'
 
 		inc 	bx
-		loop	execute_abrir_read_file_ascii2bin_loop
-execute_abrir_read_file_ascii2bin_loop_end:
+		loop	get_function_values_read_file_ascii2bin_loop
+get_function_values_read_file_ascii2bin_loop_end:
 ; 		;;Moves the value to the vector
 		pop		bx
 		mov		byte[original_function_values+bx],al
@@ -201,26 +212,20 @@ execute_abrir_read_file_ascii2bin_loop_end:
 		;;Check if it's negative
 		mov 	al,byte[file_line_buffer+2]
 		cmp 	al,'-'
-		jne 	execute_abrir_read_file_loop_end
-execute_abrir_is_negative:
+		jne 	get_function_values_read_file_loop_end
+get_function_values_is_negative:
 		neg		byte[original_function_values+bx]
-execute_abrir_read_file_loop_end:
+get_function_values_read_file_loop_end:
 		inc		bx ;
         pop		cx 	;If EOF not reached, recover context and keep reading
-		loop	execute_abrir_read_file_loop_start
-execute_abrir_end:
+		loop	get_function_values_read_file_loop_start
+get_function_values_end:
 		mov		word[original_function_values_len],bx
-
-	;closing file
-	    ; call	close_file
-    	; jc		execute_abrir_ret ;Skips graph plot
-
-        mov     bx,word[original_function_values_len]
-        dec     bx
-		movsx	dx,byte[original_function_values+bx]
-		call	imprimenumero
-execute_abrir_ret:
+		add		word[original_function_ammount_num_read],bx
+get_function_values_ret:
+        pop    cx
 		ret
+
 
 open_file:
 		mov 	dx,file_values ;Filename
@@ -281,11 +286,14 @@ segment data
 	file_handler							resw		1
 	file_bytes_read							resw		1
 	file_values								db 			'C:sinalep.txt',0
+    file_open_flag							db			0
 
 
     original_function_values 				resb 		485
 	original_function_values_truncated 		resb 		485
 	original_function_values_len			dw			0
+    original_function_ammount_num_read      dw          0
+
 ; definição da pilha com total de 256 bytes
 segment stack stack
     resb 256
