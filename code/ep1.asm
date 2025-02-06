@@ -81,7 +81,7 @@ execute_convolution_function:
 execute_convolution_function_fir1:
 	cmp 	word[convolution_function_option],1
 	jne 	execute_convolution_function_fir2
-	; call	convolute_fir1
+	call	convolute_fir1
 	jmp 	execute_convolution_function_ret
 
 execute_convolution_function_fir2:
@@ -103,6 +103,84 @@ execute_convolution_function_negative_one_n_power:
 	jmp 	execute_convolution_function_ret
 
 execute_convolution_function_ret:
+	ret
+
+
+convolute_fir1:
+	push	bp
+	mov		bp,sp
+convolute_fir1_values:
+	mov		cx,word[original_function_values_len]
+	mov		bx,0
+convolute_fir1_values_loop:
+	push	cx
+	push	bx
+convolute_fir1_values_calculate_window_values:
+	mov		si,original_function_values ; Gonna compare pointer values
+	add		si,[bp-4] ;Points to original_function_values[bx]
+
+	xor		ax,ax	  ;Makes AX = 0
+	xor		dx,dx	  ;Makes DX = 0
+	mov		bx,0	  ;Makes BX = 0
+convolute_fir1_values_calculate_window_first_value:
+	mov 	al,byte[si]
+	imul	byte[reflected_fir1_function+bx]
+
+	push	dx
+	mov		dl,byte[reflected_fir1_function_divisor]
+	idiv	dl ;Divide only by the Lower part of the extended byte
+	pop		dx
+
+	add		dl,al
+	cmp		word[original_function_old_values_len],0 ;If there are saved values
+	jg		convolute_fir1_values_calculate_window_old_values
+	jmp		convolute_fir1_values_calculate_window_values_loop_end ;If there aren't saved values
+convolute_fir1_values_calculate_window_old_values:
+	mov		cx,word[original_function_old_values_len]
+convolute_fir1_values_calculate_window_old_values_loop:
+	mov		ah,0
+	mov 	al,byte[original_function_old_values+bx] ;Points to original_function_old_values[bx]
+	inc		bx
+	imul	byte[reflected_fir1_function+bx] ;Points to reflected_fir3_function[bx+1] because the first index was used before already
+
+	push	dx
+	mov		dl,byte[reflected_fir1_function_divisor]
+	idiv	dl ;Divide only by the Lower part of the extended byte
+	pop		dx
+	; sar		al,5
+	; add		dl,al
+
+	loop	convolute_fir1_values_calculate_window_old_values_loop
+
+convolute_fir1_values_calculate_window_values_loop_end:
+
+	call shift_byte_vector_original_function_old_values_right
+
+	xor		bx,bx
+	mov		bl,byte[si]
+	mov		byte[original_function_old_values],bl
+
+
+	movsx	bx,byte[reflected_fir1_function_len]	;Dont let the "original_function_old_values_len" grow more than "reflected_fir3_function_len-1"
+	dec		bx
+	cmp		word[original_function_old_values_len],bx
+	jge		convolute_fir1_values_loop_end
+	inc		word[original_function_old_values_len]
+
+convolute_fir1_values_loop_end:
+	;Recover context from Outer Loop
+	pop		bx
+	pop		cx
+
+	mov		byte[convoluted_function_values+bx],dl
+	inc		bx
+
+	loop	convolute_fir1_values_loop
+
+	mov		word[convoluted_function_values_len],bx
+
+convolute_fir1_ret:
+	pop		bp
 	ret
 
 convolute_fir2:
@@ -142,12 +220,12 @@ convolute_fir2_values_calculate_window_old_values_loop:
 	inc		bx
 	imul	byte[reflected_fir2_function+bx] ;Points to reflected_fir3_function[bx+1] because the first index was used before already
 
-	; push	dx
-	; mov		dl,byte[reflected_fir2_function_divisor]
-	; idiv	dl ;Divide only by the Lower part of the extended byte
-	; pop		dx
-	sar		al,4
-	add		dl,al
+	push	dx
+	mov		dl,byte[reflected_fir2_function_divisor]
+	idiv	dl ;Divide only by the Lower part of the extended byte
+	pop		dx
+	; sar		al,4
+	; add		dl,al
 
 	loop	convolute_fir2_values_calculate_window_old_values_loop
 
@@ -567,13 +645,43 @@ execute_fir1:
 		mov 	byte[negative_one_n_power_color], branco
 		mov 	byte[sair_color],branco
 
-	;; Faco o que a opcao deve fazer
-	;...
-	;...
-	;...
+execute_fir1_check_function_value:
+	cmp		word[convolution_function_option],0
+	je		execute_fir1_start
+	cmp		word[convolution_function_option],1
+	je		execute_fir1_start
 
-	;retorno pro loop do menu
+	;Clears old graph from another convulution option
+
+	call	draw_graph_borders
+	mov 	al,preto
+	mov 	byte[cor],al
+	call	draw_convoluted_function
+	mov 	al,byte[original_function_color]
+	mov 	byte[cor],al
+	call	draw_original_function
+
+	mov		word[convolution_function_option],0
+	mov		word[convoluted_function_values_len],0
+	mov		word[original_function_old_values_len],0
+
+execute_fir1_start:
+	mov		word[convolution_function_option],1;Choses convolution option
+	cmp		word[original_function_values_len],0
+	jne		execute_fir1_convolution
+
+	mov		word[convolution_function_option],0
+	jmp 	execute_fir1_ret
+execute_fir1_convolution:
+	call	execute_convolution_function
+	mov 	al,byte[original_function_color]
+	mov 	byte[cor],al
+	call	draw_convoluted_function
+
+execute_fir1_ret:
+;	retorno pro loop do menu
 	ret
+
 
 execute_fir2:
 	;Pinto todos de branco (pra não precisar salvar qual era o que estava pintado)
@@ -2144,6 +2252,10 @@ cor						db		branco_intenso
 	reflected_fir2_function					db		1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
 	reflected_fir2_function_len				db		15
 	reflected_fir2_function_divisor			db		15
+
+	reflected_fir1_function					db		1,2,3,4,6,5,4,3,2,1
+	reflected_fir1_function_len				db		10
+	reflected_fir1_function_divisor			db		31
 
 	original_function_old_values 		resb	14 ; So it's usable for FIR1/FIR2/FIR3
 	original_function_old_values_len	dw		0
