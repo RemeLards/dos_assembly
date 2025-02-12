@@ -1463,7 +1463,7 @@ quit:
 		; mov 		ax, 1
 		; int 		33h
 
-		DEBUGAR
+		;DEBUGAR
 		mov		dx,word[original_function_old_values_len]
 		call	imprimenumero
 
