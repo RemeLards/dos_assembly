@@ -20,7 +20,216 @@ segment code
    		mov     	ah,0
     	int     	10h
 		
+draw_limit_lines:
+	;Argumentos da função "line" são line(x1,y1,x2,y2)
+		mov		byte[cor],branco
+		mov		ax,0 ;x1
+		push	ax
+		mov		ax,0 ;y1
+		push	ax
+		mov		ax,0 ;x2 
+		push	ax
+		mov		ax,479 ;y2
+		push	ax
+		call	line ;line(x1,y1,x2,y2)
+		
+		mov		byte[cor],branco
+		mov		ax,0 ;x1
+		push	ax
+		mov		ax,479 ;y1
+		push	ax
+		mov		ax,639 ;x2
+		push	ax
+		mov		ax,479 ;y2
+		push	ax
+		call	line ;line(x1,y1,x2,y2)
 
+		mov		byte[cor],branco	
+		mov		ax,639 ;x1
+		push	ax
+		mov		ax,479 ;y1
+		push	ax
+		mov		ax,639 ;x2
+		push	ax
+		mov		ax,0 ;y2
+		push	ax
+		call	line ;line(x1,y1,x2,y2)
+
+
+		mov		byte[cor],branco	
+		mov		ax,639 ;x1
+		push	ax
+		mov		ax,0 ;y1
+		push	ax
+		mov		ax,0 ;x2
+		push	ax
+		mov		ax,0 ;y2
+		push	ax
+		call	line ;line(x1,y1,x2,y2)
+
+	;Argumentos da função "full_circle" são full_circle(xr,yr,r)
+		mov		byte[cor],vermelho
+		mov 	word[current_x],319 ;xr
+		push	word[current_x]
+		mov		word[current_y],239 ;yr
+		push	word[current_y]
+		mov		word[current_r],10 ;r
+		push	word[current_r]
+		call full_circle ; full_circle(xr,yr,r)
+
+
+;AQUI COMEÇA A ANIMAÇÃO DE VERDADE
+animate_ball:
+		mov ah,0bh
+		int 21h ; Le buffer de teclado
+		cmp al,0 ; Se AL =0 nada foi digitado. Se AL =255 então há algum caracter na STDIN
+		jne adelante
+		jmp delete_old_ball ; se AL = 0 então nada foi digitado e a animação do jogo deve continuar
+adelante:
+		mov ah, 08H ;Ler caracter da STDIN
+		int 21H
+		cmp al, 's' ;Verifica se foi 's'. Se foi, finaliza o programa
+		jne delete_old_ball
+		jmp quit
+delete_old_ball:
+	;Delete old ball
+
+		mov		byte[cor],preto
+		push	word[current_x]
+		push	word[current_y]
+		push	word[current_r]
+		call full_circle	
+update_ball_pos:
+		;Atualizo as posições X e Y da bola
+		;Para depois checar colisão e depois desenha-lá
+		mov ax,word[velocidade_x] 
+		add word[current_x],ax
+		mov	ax,word[velocidade_y]
+		add word[current_y],ax
+
+hit_wall:
+		;Checks if hit the right wall
+		mov ax,[current_x]
+		add ax,[current_r]
+		cmp ax,639 ; levanta as flags para usar com os jumps condicionais
+		jge hit_right_wall; jge = "jump if greater or equal"
+
+		;Checks if hit the left wall
+		mov ax,[current_x]
+		sub ax,[current_r]
+		cmp ax,0 ; levanta as flags para usar com os jumps condicionais
+		jle hit_left_wall ;jle = "jump if less or equal"
+
+		;Se colide com as paredes ainda temos que checar se colide com o chão/teto
+		;por isso não posso da um "jmp move_ball" dentro de cada uma dessas duas labels
+		;e sim um "jmp hit_floor_ceiling"
+		;se ambos os jumps não forem executados, o programa ainda prossegue para o label "hit_floor_ceiling"
+		;já que ele está logo abaixo (labels só servem para saber para onde "pular na execução")
+		;caso o jump não seja executado, o programa prossegue para a proxima linha
+hit_floor_ceiling:
+		; Y = 0 é o topo da tela
+		; Y = 479 é o "chão" da tela
+		;Checks if hit the ceiling
+		mov ax,[current_y]
+		add ax,[current_r]
+		cmp ax,479 ; levanta as flags para usar com os jumps condicionais
+		jge hit_ceiling ; jge = "jump if greater or equal"
+
+		;Se colide com o chão não colide com o teto
+		;por isso posso da um "jmp move_ball" dentro de cada uma dessas duas labels
+
+		;Checks if hit the floor
+		mov ax,[current_y]
+		sub ax,[current_r]
+		cmp ax,0 ; levanta as flags para usar com os jumps condicionais
+		jle hit_floor; jle = "jump if less or equal"
+
+		;Aqui é necessário o uso do "jmp move_ball", se não o programa prosseguiria para o "hit_right_wall"
+		jmp move_ball
+hit_right_wall:
+		;Atualizo a posição X da bola novamente
+		;Caso ela bata na parede da direita
+		call reverse_x_vel
+		mov ax,639
+		sub ax,[current_r]
+		mov [current_x],ax
+		jmp hit_floor_ceiling
+hit_left_wall:
+		call reverse_x_vel
+		mov ax,[current_r]
+		mov [current_x],ax
+		jmp hit_floor_ceiling
+reverse_x_vel:
+		neg word[velocidade_x] ;Nega com complemento de 2, no caso é igual a fazer "not x" e depois "inc x"
+		ret
+hit_floor:
+		call reverse_y_vel
+		mov ax,[current_r]
+		mov [current_y],ax
+		jmp move_ball
+hit_ceiling:
+		call reverse_y_vel
+		mov ax,479
+		sub ax,[current_r]
+		mov [current_y],ax
+		jmp move_ball
+reverse_y_vel:
+		neg word[velocidade_y] ; Nega com complemento de 2, no caso é igual a fazer "not x" e depois "inc x"
+		ret
+	
+	;Actually Draws it
+move_ball:
+		mov byte[cor],vermelho
+		push	word[current_x]
+		push	word[current_y]
+		push	word[current_r]
+		call full_circle
+		call delay
+		jmp animate_ball ;returns to the start
+		;O "Flickering" da bola (bola piscando) ocorre porque desenho uma bola preta e vermelha ao mesmo tempo
+		;Mas a sensação de movimento é o que é importante para esse lab
+
+
+		
+quit:
+		mov  	ah,0   			; set video mode
+		mov  	al,[modo_anterior]   	; modo anterior
+		int  	10h
+		mov ax,4c00h ; função de encerrar o programa caso "int 21h" seja chamado depois,
+		;o mesmo que fazer "mov ah 4ch", mas provavelmente "al" não é 0, por isso o uso de 2 bytes em "4c00h"
+		int 21h ; encerra o programa 
+
+
+
+;escrever uma mensagem
+
+    	mov     	cx,14			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,0			;linha 0-29
+    	mov     	dl,30			;coluna 0-79
+		mov		byte[cor],azul
+l4:
+		call	cursor
+    	mov     al,[bx+mens]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+		inc		byte [cor]		;mudar a cor para a seguinte
+    	loop    l4
+
+		mov    	ah,08h
+		int     21h
+	    mov  	ah,0   			; set video mode
+	    mov  	al,[modo_anterior]   	; modo anterior
+	    int  	10h
+		mov     ax,4c00h
+		int     21h
+
+;***************************************************************************
+;
+;   fun��o cursor
+;
+; dh = linha (0-29) e  dl=coluna  (0-79)
 cursor:
 		pushf
 		push 		ax
@@ -597,6 +806,12 @@ deltax		dw		0
 deltay		dw		0	
 mens    	db  		'Funcao Grafica'
 
+velocidade dw 100
+velocidade_x dw 5
+velocidade_y dw -5
+current_x resw 1
+current_y resw 1
+current_r resw 1
 ;*************************************************************************
 segment stack stack
     		resb 		512

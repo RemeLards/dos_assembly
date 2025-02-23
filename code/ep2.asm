@@ -16,10 +16,257 @@ segment code
     		mov  		[modo_anterior],al   
 
 ; alterar modo de video para gráfico 640x480 16 cores
-    	mov     	al,12h
-   		mov     	ah,0
-    	int     	10h
+			mov     	al,12h
+			mov     	ah,0
+			int     	10h
 		
+;escrever uma mensagem
+
+			mov     	cx,[owner_len]			;n�mero de caracteres
+			mov     	bx,0
+			mov     	dh,2			;linha 0-29
+			mov     	dl,20			;coluna 0-79
+			mov		byte[cor],branco_intenso
+
+			xor 	AX, AX
+			mov 	ES, AX
+			mov     AX, [ES:intr*4];carregou AX com offset anterior
+			mov     [offset_dos], AX        ; offset_dos guarda o end. para qual ip de int 9 estava apontando anteriormente
+			mov     AX, [ES:intr*4+2]     ; cs_dos guarda o end. anterior de CS
+			mov     [cs_dos], AX
+			cli     
+			mov     [ES:intr*4+2], CS
+			mov     WORD [ES:intr*4],relogio
+			sti
+
+
+program_start:
+program_loop:
+		cmp 	byte [tique], 0
+		jne 	check_kb
+		call 	converte
+		call	write_clock
+		call 	write_menu
+check_kb: 
+		mov 	ah,0bh		
+		int 	21h			; Le buffer de teclado
+		cmp 	al,0
+		je		program_loop	
+		jmp 	quit
+
+
+write_clock:
+		mov			byte[cor],branco_intenso
+    	mov     	cx,[horario_len];n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,10			;linha 0-29
+    	mov     	dl,27			;coluna 0-79
+write_clock_loop:
+		call	cursor
+    	mov     al,[bx+horario]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    write_clock_loop
+
+		ret
+
+
+
+relogio:
+	push	ax
+	push	ds
+	mov     ax,data	
+	mov     ds,ax	
+    
+    inc	byte [tique]
+    cmp	byte[tique], 18	
+    jb		Fimrel
+	mov byte [tique], 0
+	inc byte [segundo]
+	cmp byte [segundo], 60
+	jb   	Fimrel
+	mov byte [segundo], 0
+	inc byte [minuto]
+	cmp byte [minuto], 60
+	jb   	Fimrel
+	mov byte [minuto], 0
+	inc byte [hora]
+	cmp byte [hora], 24
+	jb   	Fimrel
+	mov byte [hora], 0	
+Fimrel:
+    mov		al,20h
+	out		20h,al
+	pop		ds
+	pop		ax
+	iret
+	
+converte:
+    push 	ax
+	push    ds
+	mov     ax, data
+	mov     ds, ax
+	xor 	ah, ah
+	MOV     BL, 10
+	mov 	al, byte [segundo]
+    DIV     BL
+    ADD     AL, 30h                                                                                          
+    MOV     byte [horario+6], AL
+    ADD     AH, 30h
+    mov 	byte [horario+7], AH
+    
+	xor 	ah, ah
+	mov 	al, byte [minuto]
+    DIV     BL
+    ADD     AL, 30h                                                                                          
+    MOV     byte [horario+3], AL
+    ADD     AH, 30h
+    mov 	byte [horario+4], AH
+	
+	xor 	ah, ah
+	mov 	al, byte [hora]
+    DIV     BL
+    ADD     AL, 30h                                                                                          
+    MOV     byte [horario], AL
+    ADD     AH, 30h
+    mov 	byte [horario+1], AH
+	pop     ds
+	pop     ax
+	ret  
+
+
+
+write_menu:
+
+		mov		byte[cor],branco_intenso
+
+    	mov     	cx,[owner_len]			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,2			;linha 0-29
+    	mov     	dl,20			;coluna 0-79
+write_owner_info:
+		call	cursor
+    	mov     al,[bx+owner]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    write_owner_info
+
+    	mov     	cx,[clock_info_str_len]			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,10			;linha 0-29
+    	mov     	dl,20			;coluna 0-79
+write_clock_info:
+		call	cursor
+    	mov     al,[bx+clock_info_str]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    write_clock_info
+
+    	mov     	cx,[menu_info_str_len]			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,16			;linha 0-29
+    	mov     	dl,20			;coluna 0-79
+write_menu_info:
+		call	cursor
+    	mov     al,[bx+menu_info_str]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    write_menu_info
+
+    	mov     	cx,[sair_str_len]			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,18			;linha 0-29
+    	mov     	dl,28			;coluna 0-79
+write_sair_info:
+		call	cursor
+    	mov     al,[bx+sair_str]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    write_sair_info
+
+    	mov     	cx,[seconds_str_len]			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,20			;linha 0-29
+    	mov     	dl,28			;coluna 0-79
+write_seconds_info:
+		call	cursor
+    	mov     al,[bx+seconds_str]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    write_seconds_info
+
+
+    	mov     	cx,[minutes_str_len]			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,22			;linha 0-29
+    	mov     	dl,28			;coluna 0-79
+write_minutes_info:
+		call	cursor
+    	mov     al,[bx+minutes_str]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    write_minutes_info
+
+    	mov     	cx,[hour_str_len]			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,24			;linha 0-29
+    	mov     	dl,28			;coluna 0-79
+write_hour_info:
+		call	cursor
+    	mov     al,[bx+hour_str]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    write_hour_info
+
+
+    	mov     	cx,[arrows_str_len]			;n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,26			;linha 0-29
+    	mov     	dl,28			;coluna 0-79
+write_arrow_info:
+		call	cursor
+    	mov     al,[bx+arrows_str]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    write_arrow_info
+
+		ret
+
+
+
+quit:
+		cli
+		xor     AX, AX
+		mov     ES, AX
+		mov     AX, [cs_dos]
+		mov     [ES:intr*4+2], AX
+		mov     AX, [offset_dos]
+		mov     [ES:intr*4], AX 
+		mov     AH, 4Ch
+		int     21h
+		
+        mov ah,08h
+        int 21h 
+		mov  	ah,0   			; set video mode
+		mov  	al,[modo_anterior]   	; modo anterior
+		int  	10h
+		mov ax,4c00h ; função de encerrar o programa caso "int 21h" seja chamado depois,
+		;o mesmo que fazer "mov ah 4ch", mas provavelmente "al" não é 0, por isso o uso de 2 bytes em "4c00h"
+		int 21h ; encerra o programa
+;***************************************************************************
+;
+;   fun��o cursor
+;
+; dh = linha (0-29) e  dl=coluna  (0-79)
 
 cursor:
 		pushf
@@ -540,20 +787,9 @@ fim_line:
 
 
 
-delay: ; Esteja atento pois talvez seja importante salvar contexto (no caso, CX, o que NÃO foi feito aqui).
-	mov cx, word [velocidade] ; Carrega “velocidade” em cx (contador para loop)
-	del2:
-	push cx ; Coloca cx na pilha para usa-lo em outro loop
-	mov cx, 0800h ; Teste modificando este valor
-del1:
-	loop del1 ; No loop del1, cx é decrementado até que volte a ser zero
-	pop cx ; Recupera cx da pilha
-	loop del2 ; No loop del2, cx é decrementado até que seja zero
-	ret
-
 segment data
 
-cor		db		branco_intenso
+	cor		db		branco_intenso
 
 ;	I R G B COR
 ;	0 0 0 0 preto
@@ -573,29 +809,68 @@ cor		db		branco_intenso
 ;	1 1 1 0 amarelo
 ;	1 1 1 1 branco intenso
 
-preto		equ		0
-azul		equ		1
-verde		equ		2
-cyan		equ		3
-vermelho	equ		4
-magenta		equ		5
-marrom		equ		6
-branco		equ		7
-cinza		equ		8
-azul_claro	equ		9
-verde_claro	equ		10
-cyan_claro	equ		11
-rosa		equ		12
-magenta_claro	equ		13
-amarelo		equ		14
-branco_intenso	equ		15
+	preto			equ		0
+	azul			equ		1
+	verde			equ		2
+	cyan			equ		3
+	vermelho		equ		4
+	magenta			equ		5
+	marrom			equ		6
+	branco			equ		7
+	cinza			equ		8
+	azul_claro		equ		9
+	verde_claro		equ		10
+	cyan_claro		equ		11
+	rosa			equ		12
+	magenta_claro	equ		13
+	amarelo			equ		14
+	branco_intenso	equ		15
 
-modo_anterior	db		0
-linha   	dw  		0
-coluna  	dw  		0
-deltax		dw		0
-deltay		dw		0	
-mens    	db  		'Funcao Grafica'
+	modo_anterior	db		0
+	linha   		dw  	0
+	coluna  		dw  	0
+	deltax			dw		0
+	deltay			dw		0
+
+;Strings to print on the interface	
+
+	owner    			db 		'TL_2022/2, RAFAEL FRACALOSSI FREITAS 06.1'
+	owner_len			dw		41 
+
+	clock_info_str		db		'Hora:'
+	clock_info_str_len	dw		5
+
+	menu_info_str		db		'Menu de teclas:'
+	menu_info_str_len	dw		15
+
+	sair_str			db		'x: sair'
+	sair_str_len		dw		7
+
+	seconds_str			dw		's: para o contador dos segundos.'
+	seconds_str_len		dw		32
+
+	minutes_str			dw		'm: para o contador dos minutos.'
+	minutes_str_len		dw		31
+
+	hour_str			dw		'h: para o contador das horas.'
+	hour_str_len		dw		30
+
+	arrows_str			db		'^ v: ajuste de horario segundo operacao modulo.'
+	arrows_str_len		dw		47		
+
+
+;Clock variables
+	eoi     		EQU 	20h
+    intr	   		EQU 	08h
+	char			db		0
+	offset_dos		dw		0
+	cs_dos			dw		0
+	tique			db  	0
+	segundo			db  	0
+	minuto 			db  	0
+	hora 			db  	0
+	horario			db  	0,0,':',0,0,':',0,0,' ', 13,'$'
+	horario_len		dw		8
 
 ;*************************************************************************
 segment stack stack
