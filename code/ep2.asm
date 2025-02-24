@@ -20,7 +20,7 @@ segment code
 			mov     	ah,0
 			int     	10h
 		
-;escrever uma mensagem
+;putting clock interruption
 
 			mov     	cx,[owner_len]			;n�mero de caracteres
 			mov     	bx,0
@@ -39,37 +39,120 @@ segment code
 			mov     WORD [ES:intr*4],relogio
 			sti
 
+;putting keyboard interruption
+			XOR     AX, AX
+        	MOV     ES, AX
+			MOV     AX, [ES:int9*4];carregou AX com offset anterior
+			MOV     [offset_dos_kb], AX        ; offset_dos guarda o end. para qual ip de int 9 estava apontando anteriormente
+			MOV     AX, [ES:int9*4+2]     ; cs_dos guarda o end. anterior de CS
+			MOV     [cs_dos_kb], AX
+			CLI     
+			MOV     [ES:int9*4+2], CS
+			MOV     WORD [ES:int9*4],keyint
+			STI
+
 
 program_start:
+		call 	write_menu
 program_loop:
 		cmp 	byte [tique], 0
 		jne 	check_kb
+		jmp		program_loop
+check_kb: ;Needed to copy the "check_kb_press_blocking" but alter it here, to not block the clock display
+        mov     ax,[p_i]
+        CMP     ax,[p_t]
 		call 	converte
 		call	write_clock
-		call 	write_menu
-check_kb: 
-		mov 	ah,0bh		
-		int 	21h			; Le buffer de teclado
-		cmp 	al,0
-		je		program_loop	
+        je      program_loop
+        inc     word[p_t]
+        and     word[p_t],7
+        mov     bx,[p_t]
+        XOR     AX, AX
+        MOV     AL, [bx+tecla]
+        mov     [tecla_u],al
+		call 	clock_functions
+		jmp		program_loop
+
+
+clock_functions:
+clock_functions_x:
+		cmp		byte[tecla_u],2dh ; "x" press value on the new keyboard interruption
+		jne		clock_functions_s
 		jmp 	quit
+clock_functions_s:
+		cmp		byte[tecla_u],1fh  ; "s" press value on the new keyboard interruption
+		je		clock_functions_edit_seconds				
+		jmp		clock_functions_m
+
+clock_functions_m:
+		cmp		byte[tecla_u],32h  ; "m" press value on the new keyboard interruption
+		je		clock_functions_edit_minutes				
+		jmp		clock_functions_h	
+
+clock_functions_h:
+		cmp		byte[tecla_u],23h  ; "h" press value on the new keyboard interruption
+		je		clock_functions_edit_hour				
+		jmp		clock_functions_ret				
+
+clock_functions_edit_seconds:
+		call 	stop_clock
+		call 	check_kb_press_blocking
+
+		cmp		byte[tecla_u],0xe0 ; first byte of the "arrow" keys, check if its a arrow key
+		jne		clock_functions_edit_seconds_quit
+
+		call 	inc_dec_clock_seconds ;inc or dec seconds
+		call 	converte
+		call	write_clock
+		jmp		clock_functions_edit_seconds 
+
+clock_functions_edit_seconds_quit:
+		cmp		byte[tecla_u],1ch ; "ENTER" press value on the new keyboard interruption
+		jne		clock_functions_edit_seconds
+		call 	resume_clock
+		jmp		clock_functions_ret
+
+clock_functions_edit_minutes:
+		call 	stop_clock
+		call 	check_kb_press_blocking
+
+		cmp		byte[tecla_u],0xe0 ; first byte of the "arrow" keys, check if its a arrow key
+		jne		clock_functions_edit_minutes_quit
+
+		call 	inc_dec_clock_minutes ;inc or dec minutes
+		call 	converte
+		call	write_clock
+		jmp		clock_functions_edit_minutes
+
+clock_functions_edit_minutes_quit:
+		cmp		byte[tecla_u],1ch ; "ENTER" press value on the new keyboard interruption
+		jne		clock_functions_edit_minutes
+		call 	resume_clock
+		jmp		clock_functions_ret
 
 
-write_clock:
-		mov			byte[cor],branco_intenso
-    	mov     	cx,[horario_len];n�mero de caracteres
-    	mov     	bx,0
-    	mov     	dh,10			;linha 0-29
-    	mov     	dl,27			;coluna 0-79
-write_clock_loop:
-		call	cursor
-    	mov     al,[bx+horario]
-		call	caracter
-    	inc     bx			;proximo caracter
-		inc		dl			;avanca a coluna
-    	loop    write_clock_loop
+clock_functions_edit_hour:
+		call 	stop_clock
+		call 	check_kb_press_blocking
 
+		cmp		byte[tecla_u],0xe0 ; first byte of the "arrow" keys, check if its a arrow key
+		jne		clock_functions_edit_hour_quit	
+
+		call 	inc_dec_clock_hours
+		call 	converte
+		call	write_clock
+		jmp		clock_functions_edit_hour 	
+
+clock_functions_edit_hour_quit:
+		cmp		byte[tecla_u],1ch ; "ENTER" press value on the new keyboard interruption
+		jne		clock_functions_edit_hour
+		call 	resume_clock
+		jmp		clock_functions_ret
+
+clock_functions_ret:
 		ret
+
+		
 
 
 
@@ -135,6 +218,22 @@ converte:
 	pop     ax
 	ret  
 
+
+write_clock:
+		mov			byte[cor],branco_intenso
+    	mov     	cx,[horario_len];n�mero de caracteres
+    	mov     	bx,0
+    	mov     	dh,10			;linha 0-29
+    	mov     	dl,27			;coluna 0-79
+write_clock_loop:
+		call	cursor
+    	mov     al,[bx+horario]
+		call	caracter
+    	inc     bx			;proximo caracter
+		inc		dl			;avanca a coluna
+    	loop    write_clock_loop
+
+		ret
 
 
 write_menu:
@@ -245,17 +344,27 @@ write_arrow_info:
 
 quit:
 		cli
+
+		;Return original clock interruption
 		xor     AX, AX
 		mov     ES, AX
 		mov     AX, [cs_dos]
 		mov     [ES:intr*4+2], AX
 		mov     AX, [offset_dos]
 		mov     [ES:intr*4], AX 
-		mov     AH, 4Ch
-		int     21h
-		
-        mov ah,08h
-        int 21h 
+
+		;Return original keyboard interruption
+        XOR     AX, AX
+        MOV     ES, AX
+        MOV     AX, [cs_dos_kb]
+        MOV     [ES:int9*4+2], AX
+        MOV     AX, [offset_dos_kb]
+        MOV     [ES:int9*4], AX 
+
+		;waits for a char input
+        ; mov ah,08h
+        ; int 21h 
+
 		mov  	ah,0   			; set video mode
 		mov  	al,[modo_anterior]   	; modo anterior
 		int  	10h
@@ -783,8 +892,167 @@ fim_line:
 		popf
 		pop		bp
 		ret		8
+
+
+check_kb_press:	
+        mov     ax,[p_i]
+        ; CMP     ax,[p_t]
+        ; JE      check_kb_press
+        inc     word[p_t]
+        and     word[p_t],7
+        mov     bx,[p_t]
+        XOR     AX, AX
+        MOV     AL, [bx+tecla]
+        mov     [tecla_u],al
+		ret
+
+check_kb_press_blocking:	
+        mov     ax,[p_i]
+        CMP     ax,[p_t]
+        JE      check_kb_press_blocking
+        inc     word[p_t]
+        and     word[p_t],7
+        mov     bx,[p_t]
+        XOR     AX, AX
+        MOV     AL, [bx+tecla]
+        mov     [tecla_u],al
+		ret
+
+
+keyint:
+        PUSH    AX
+        push    bx
+        push    ds
+        mov     ax,data
+        mov     ds,ax
+        IN      AL, kb_data
+        inc     WORD [p_i]
+        and     WORD [p_i],7
+        mov     bx,[p_i]
+        mov     [bx+tecla],al
+        IN      AL, kb_ctl
+        OR      AL, 80h
+        OUT     kb_ctl, AL
+        AND     AL, 7Fh
+        OUT     kb_ctl, AL
+        MOV     AL, eoi
+        OUT     pictrl, AL
+        pop     ds
+        pop     bx
+        POP     AX
+        IRET
 ;*******************************************************************
 
+stop_clock:
+		in   al, 21h          ; Read current PIC mask
+		or   al, 01h          ; Set bit 0 to disable IRQ0 (Timer)
+		out  21h, al          ; Write back to PIC
+		ret
+
+resume_clock:
+		in   al, 21h          ; Read current PIC mask
+    	and  al, 0FEh         ; Clear bit 0 to enable IRQ0 (Timer)
+    	out  21h, al          ; Write back to PIC
+		ret
+
+inc_dec_clock_seconds:
+
+			call 	check_kb_press_blocking
+			cmp 	byte[tecla_u],0x48
+			jne		dec_seconds_arrow_up_pressed	
+
+	inc_seconds_arrow_up_pressed:
+			cmp		byte[segundo],59
+			je 		inc_seconds_arrow_up_pressed_reset_minutes
+			inc		byte[segundo]
+			jmp 	inc_dec_clock_seconds_ret
+
+	inc_seconds_arrow_up_pressed_reset_minutes:
+			mov		byte[segundo],0
+			jmp		inc_dec_clock_seconds_ret
+
+	dec_seconds_arrow_up_pressed:
+			cmp 	byte[tecla_u],0x50
+			jne		inc_dec_clock_seconds_ret
+			cmp		byte[segundo],0
+			je 		dec_seconds_arrow_up_pressed_reset_minutes
+			dec		byte[segundo]
+			jmp 	inc_dec_clock_seconds_ret
+
+	dec_seconds_arrow_up_pressed_reset_minutes:
+			mov		byte[segundo],59
+			jmp		inc_dec_clock_seconds_ret
+
+	inc_dec_clock_seconds_ret:
+			mov  	byte[tecla_u],0x00
+			ret
+
+		
+inc_dec_clock_minutes:
+
+			call 	check_kb_press_blocking
+			cmp 	byte[tecla_u],0x48
+			jne		dec_minutes_arrow_up_pressed	
+
+	inc_minutes_arrow_up_pressed:
+			cmp		byte[minuto],59
+			je 		inc_minutes_arrow_up_pressed_reset_minutes
+			inc		byte[minuto]
+			jmp 	inc_dec_clock_minutes_ret
+
+	inc_minutes_arrow_up_pressed_reset_minutes:
+			mov		byte[minuto],0
+			jmp		inc_dec_clock_minutes_ret
+
+	dec_minutes_arrow_up_pressed:
+			cmp 	byte[tecla_u],0x50
+			jne		inc_dec_clock_minutes_ret
+			cmp		byte[minuto],0
+			je 		dec_minutes_arrow_up_pressed_reset_minutes
+			dec		byte[minuto]
+			jmp 	inc_dec_clock_minutes_ret
+
+	dec_minutes_arrow_up_pressed_reset_minutes:
+			mov		byte[minuto],59
+			jmp		inc_dec_clock_minutes_ret
+
+	inc_dec_clock_minutes_ret:
+			mov  	byte[tecla_u],0x00
+			ret
+
+
+
+inc_dec_clock_hours:
+
+			call 	check_kb_press_blocking
+			cmp 	byte[tecla_u],0x48
+			jne		dec_hours_arrow_up_pressed	
+
+	inc_hours_arrow_up_pressed:
+			cmp		byte[hora],23
+			je 		inc_hours_arrow_up_pressed_reset_hours
+			inc		byte[hora]
+			jmp 	inc_dec_clock_hours_ret
+
+	inc_hours_arrow_up_pressed_reset_hours:
+			mov		byte[hora],0
+			jmp		inc_dec_clock_hours_ret
+
+	dec_hours_arrow_up_pressed:
+			cmp 	byte[tecla_u],0x50
+			jne		inc_dec_clock_hours_ret
+			cmp		byte[hora],0
+			je 		dec_hours_arrow_up_pressed_reset_hours
+			dec		byte[hora]
+			jmp 	inc_dec_clock_hours_ret
+
+	dec_hours_arrow_up_pressed_reset_hours:
+			mov		byte[hora],23
+			jmp		inc_dec_clock_hours_ret
+
+	inc_dec_clock_hours_ret:
+			mov  	byte[tecla_u],0x00
+			ret
 
 
 segment data
@@ -834,7 +1102,7 @@ segment data
 
 ;Strings to print on the interface	
 
-	owner    			db 		'TL_2022/2, RAFAEL FRACALOSSI FREITAS 06.1'
+	owner    			db 		'TL_2024/2, RAFAEL FRACALOSSI FREITAS 06.1'
 	owner_len			dw		41 
 
 	clock_info_str		db		'Hora:'
@@ -871,6 +1139,20 @@ segment data
 	hora 			db  	0
 	horario			db  	0,0,':',0,0,':',0,0,' ', 13,'$'
 	horario_len		dw		8
+
+;Keyboard variables
+
+	kb_data 		EQU 60h  ;PORTA DE LEITURA DE TECLADO
+	kb_ctl  		EQU 61h  ;PORTA DE RESET PARA PEDIR NOVA INTERRUPCAO
+	pictrl  		EQU 20h
+	int9    		EQU 9h
+	cs_dos_kb  		DW  1
+	offset_dos_kb  	DW 1
+	tecla_u 		db 0
+	tecla   		resb  8 
+	p_i     		dw  0   ;ponteiro p/ interrupcao (qnd pressiona tecla)  
+	p_t     		dw  0   ;ponterio p/ interrupcao ( qnd solta tecla)    
+	teclasc 		DB  0,0,13,10,'$'
 
 ;*************************************************************************
 segment stack stack
