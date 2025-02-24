@@ -1,6 +1,8 @@
 ; versão de 10/05/2007
 ; corrigido erro de arredondamento na rotina line.
 ; circle e full_circle disponibilizados por Jefferson Moro em 10/2009
+; NOME : RAFAEL FRACALOSSI FREITAS
+; TURMA: 2024/2
 ;
 segment code
 ..start:
