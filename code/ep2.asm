@@ -225,8 +225,8 @@ write_clock:
 		mov			byte[cor],branco_intenso
     	mov     	cx,[horario_len];n�mero de caracteres
     	mov     	bx,0
-    	mov     	dh,10			;linha 0-29
-    	mov     	dl,27			;coluna 0-79
+    	mov     	dh,14			;linha 0-29
+    	mov     	dl,39			;coluna 0-79
 write_clock_loop:
 		call	cursor
     	mov     al,[bx+horario]
@@ -256,8 +256,8 @@ write_owner_info:
 
     	mov     	cx,[clock_info_str_len]			;n�mero de caracteres
     	mov     	bx,0
-    	mov     	dh,10			;linha 0-29
-    	mov     	dl,20			;coluna 0-79
+    	mov     	dh,14			;linha 0-29
+    	mov     	dl,30			;coluna 0-79
 write_clock_info:
 		call	cursor
     	mov     al,[bx+clock_info_str]
@@ -268,7 +268,7 @@ write_clock_info:
 
     	mov     	cx,[menu_info_str_len]			;n�mero de caracteres
     	mov     	bx,0
-    	mov     	dh,16			;linha 0-29
+    	mov     	dh,18			;linha 0-29
     	mov     	dl,20			;coluna 0-79
 write_menu_info:
 		call	cursor
@@ -280,7 +280,7 @@ write_menu_info:
 
     	mov     	cx,[sair_str_len]			;n�mero de caracteres
     	mov     	bx,0
-    	mov     	dh,18			;linha 0-29
+    	mov     	dh,20			;linha 0-29
     	mov     	dl,28			;coluna 0-79
 write_sair_info:
 		call	cursor
@@ -292,7 +292,7 @@ write_sair_info:
 
     	mov     	cx,[seconds_str_len]			;n�mero de caracteres
     	mov     	bx,0
-    	mov     	dh,20			;linha 0-29
+    	mov     	dh,22			;linha 0-29
     	mov     	dl,28			;coluna 0-79
 write_seconds_info:
 		call	cursor
@@ -305,7 +305,7 @@ write_seconds_info:
 
     	mov     	cx,[minutes_str_len]			;n�mero de caracteres
     	mov     	bx,0
-    	mov     	dh,22			;linha 0-29
+    	mov     	dh,24			;linha 0-29
     	mov     	dl,28			;coluna 0-79
 write_minutes_info:
 		call	cursor
@@ -317,7 +317,7 @@ write_minutes_info:
 
     	mov     	cx,[hour_str_len]			;n�mero de caracteres
     	mov     	bx,0
-    	mov     	dh,24			;linha 0-29
+    	mov     	dh,26			;linha 0-29
     	mov     	dl,28			;coluna 0-79
 write_hour_info:
 		call	cursor
@@ -330,7 +330,7 @@ write_hour_info:
 
     	mov     	cx,[arrows_str_len]			;n�mero de caracteres
     	mov     	bx,0
-    	mov     	dh,26			;linha 0-29
+    	mov     	dh,28			;linha 0-29
     	mov     	dl,28			;coluna 0-79
 write_arrow_info:
 		call	cursor
