@@ -3,7 +3,7 @@
 ; circle e full_circle disponibilizados por Jefferson Moro em 10/2009
 
 ; NOME : RAFAEL FRACALOSSI FREITAS
-; TURMA: 2024/2
+; TURMA: 2024/2, 06.1
 
 segment code
 ..start:
@@ -149,9 +149,7 @@ clock_functions_edit_hour_quit:
 
 clock_functions_ret:
 		call 	resume_clock
-		call 	keyint_fakekey ; For some reason, when clicking the arrow up/down once and then enter it was bugging out, but when clicking arrow up/down more than once and then enter it wasnt.
-		; It was causing infinite loop, increasing hour/minute/seconds infinitely ( idk if bounce was causing this)
-		; putting a "fake key" press on the "tecla" buffer solved it. (wtf?, did this because debug this would be a pain...) 
+		call 	keyint_fakekey
 		ret
 
 		
@@ -347,6 +345,7 @@ write_arrow_info:
 
 
 quit:
+		call 	resume_clock
 		cli
 
 		;Return original clock interruption
@@ -941,18 +940,11 @@ keyint_fakekey:
         push    ds
         mov     ax,data
         mov     ds,ax
-        IN      AL, 0x00
+        mov     al, 0x00
         inc     WORD [p_i]
         and     WORD [p_i],7
         mov     bx,[p_i]
         mov     [bx+tecla],al
-        IN      AL, kb_ctl
-        OR      AL, 80h
-        OUT     kb_ctl, AL
-        AND     AL, 7Fh
-        OUT     kb_ctl, AL
-        MOV     AL, eoi
-        OUT     pictrl, AL
         pop     ds
         pop     bx
         POP     AX
