@@ -1,9 +1,10 @@
 ; versão de 10/05/2007
 ; corrigido erro de arredondamento na rotina line.
 ; circle e full_circle disponibilizados por Jefferson Moro em 10/2009
+
 ; NOME : RAFAEL FRACALOSSI FREITAS
 ; TURMA: 2024/2
-;
+
 segment code
 ..start:
     		mov 		ax,data
@@ -77,6 +78,7 @@ check_kb: ;Needed to copy the "check_kb_press_blocking" but alter it here, to no
 
 
 clock_functions:
+		call 	stop_clock
 clock_functions_x:
 		cmp		byte[tecla_u],2dh ; "x" press value on the new keyboard interruption
 		jne		clock_functions_s
@@ -97,7 +99,6 @@ clock_functions_h:
 		jmp		clock_functions_ret				
 
 clock_functions_edit_seconds:
-		call 	stop_clock
 		call 	check_kb_press_blocking
 
 		cmp		byte[tecla_u],0xe0 ; first byte of the "arrow" keys, check if its a arrow key
@@ -111,11 +112,9 @@ clock_functions_edit_seconds:
 clock_functions_edit_seconds_quit:
 		cmp		byte[tecla_u],1ch ; "ENTER" press value on the new keyboard interruption
 		jne		clock_functions_edit_seconds
-		call 	resume_clock
 		jmp		clock_functions_ret
 
 clock_functions_edit_minutes:
-		call 	stop_clock
 		call 	check_kb_press_blocking
 
 		cmp		byte[tecla_u],0xe0 ; first byte of the "arrow" keys, check if its a arrow key
@@ -129,12 +128,10 @@ clock_functions_edit_minutes:
 clock_functions_edit_minutes_quit:
 		cmp		byte[tecla_u],1ch ; "ENTER" press value on the new keyboard interruption
 		jne		clock_functions_edit_minutes
-		call 	resume_clock
 		jmp		clock_functions_ret
 
 
 clock_functions_edit_hour:
-		call 	stop_clock
 		call 	check_kb_press_blocking
 
 		cmp		byte[tecla_u],0xe0 ; first byte of the "arrow" keys, check if its a arrow key
@@ -148,10 +145,13 @@ clock_functions_edit_hour:
 clock_functions_edit_hour_quit:
 		cmp		byte[tecla_u],1ch ; "ENTER" press value on the new keyboard interruption
 		jne		clock_functions_edit_hour
-		call 	resume_clock
 		jmp		clock_functions_ret
 
 clock_functions_ret:
+		call 	resume_clock
+		call 	keyint_fakekey ; For some reason, when clicking the arrow up/down once and then enter it was bugging out, but when clicking arrow up/down more than once and then enter it wasnt.
+		; It was causing infinite loop, increasing hour/minute/seconds infinitely ( idk if bounce was causing this)
+		; putting a "fake key" press on the "tecla" buffer solved it. (wtf?, did this because debug this would be a pain...) 
 		ret
 
 		
@@ -236,6 +236,8 @@ write_clock_loop:
     	loop    write_clock_loop
 
 		ret
+
+
 
 
 write_menu:
@@ -364,8 +366,8 @@ quit:
         MOV     [ES:int9*4], AX 
 
 		;waits for a char input
-        ; mov ah,08h
-        ; int 21h 
+        ;mov ah,08h
+        ;int 21h 
 
 		mov  	ah,0   			; set video mode
 		mov  	al,[modo_anterior]   	; modo anterior
@@ -895,19 +897,6 @@ fim_line:
 		pop		bp
 		ret		8
 
-
-check_kb_press:	
-        mov     ax,[p_i]
-        ; CMP     ax,[p_t]
-        ; JE      check_kb_press
-        inc     word[p_t]
-        and     word[p_t],7
-        mov     bx,[p_t]
-        XOR     AX, AX
-        MOV     AL, [bx+tecla]
-        mov     [tecla_u],al
-		ret
-
 check_kb_press_blocking:	
         mov     ax,[p_i]
         CMP     ax,[p_t]
@@ -943,6 +932,32 @@ keyint:
         pop     bx
         POP     AX
         IRET
+
+
+keyint_fakekey:
+		push 	bp
+        PUSH    AX
+        push    bx
+        push    ds
+        mov     ax,data
+        mov     ds,ax
+        IN      AL, 0x00
+        inc     WORD [p_i]
+        and     WORD [p_i],7
+        mov     bx,[p_i]
+        mov     [bx+tecla],al
+        IN      AL, kb_ctl
+        OR      AL, 80h
+        OUT     kb_ctl, AL
+        AND     AL, 7Fh
+        OUT     kb_ctl, AL
+        MOV     AL, eoi
+        OUT     pictrl, AL
+        pop     ds
+        pop     bx
+        POP     AX
+		pop 	bp
+		RET
 ;*******************************************************************
 
 stop_clock:
@@ -961,7 +976,7 @@ inc_dec_clock_seconds:
 
 			call 	check_kb_press_blocking
 			cmp 	byte[tecla_u],0x48
-			jne		dec_seconds_arrow_up_pressed	
+			jne		dec_seconds_arrow_down_pressed	
 
 	inc_seconds_arrow_up_pressed:
 			cmp		byte[segundo],59
@@ -973,20 +988,20 @@ inc_dec_clock_seconds:
 			mov		byte[segundo],0
 			jmp		inc_dec_clock_seconds_ret
 
-	dec_seconds_arrow_up_pressed:
+	dec_seconds_arrow_down_pressed:
 			cmp 	byte[tecla_u],0x50
 			jne		inc_dec_clock_seconds_ret
 			cmp		byte[segundo],0
-			je 		dec_seconds_arrow_up_pressed_reset_minutes
+			je 		dec_seconds_arrow_down_pressed_reset_minutes
 			dec		byte[segundo]
 			jmp 	inc_dec_clock_seconds_ret
 
-	dec_seconds_arrow_up_pressed_reset_minutes:
+	dec_seconds_arrow_down_pressed_reset_minutes:
 			mov		byte[segundo],59
 			jmp		inc_dec_clock_seconds_ret
 
 	inc_dec_clock_seconds_ret:
-			mov  	byte[tecla_u],0x00
+			mov byte [tecla_u], 0x00
 			ret
 
 		
@@ -1019,7 +1034,7 @@ inc_dec_clock_minutes:
 			jmp		inc_dec_clock_minutes_ret
 
 	inc_dec_clock_minutes_ret:
-			mov  	byte[tecla_u],0x00
+			mov byte [tecla_u], 0x00
 			ret
 
 
@@ -1028,7 +1043,7 @@ inc_dec_clock_hours:
 
 			call 	check_kb_press_blocking
 			cmp 	byte[tecla_u],0x48
-			jne		dec_hours_arrow_up_pressed	
+			jne		dec_hours_arrow_down_pressed	
 
 	inc_hours_arrow_up_pressed:
 			cmp		byte[hora],23
@@ -1040,20 +1055,20 @@ inc_dec_clock_hours:
 			mov		byte[hora],0
 			jmp		inc_dec_clock_hours_ret
 
-	dec_hours_arrow_up_pressed:
+	dec_hours_arrow_down_pressed:
 			cmp 	byte[tecla_u],0x50
 			jne		inc_dec_clock_hours_ret
 			cmp		byte[hora],0
-			je 		dec_hours_arrow_up_pressed_reset_hours
+			je 		dec_hours_arrow_down_pressed_reset_hours
 			dec		byte[hora]
 			jmp 	inc_dec_clock_hours_ret
 
-	dec_hours_arrow_up_pressed_reset_hours:
+	dec_hours_arrow_down_pressed_reset_hours:
 			mov		byte[hora],23
 			jmp		inc_dec_clock_hours_ret
 
 	inc_dec_clock_hours_ret:
-			mov  	byte[tecla_u],0x00
+			mov byte [tecla_u], 0x00
 			ret
 
 
