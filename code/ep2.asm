@@ -149,6 +149,9 @@ clock_functions_edit_hour_quit:
 
 clock_functions_ret:
 		call 	resume_clock
+		; For some reason, when clicking the arrow up/down once and then enter it was bugging out, but when clicking arrow up/down more than once and then enter it wasnt.
+		; It was causing infinite loop, increasing hour/minute/seconds infinitely ( idk if bounce was causing this)
+		; putting a "fake key" press on the "tecla" buffer solved it. (wtf?, did this because debugging this would be a pain...) 
 		call 	keyint_fakekey
 		ret
 
